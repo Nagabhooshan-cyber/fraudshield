@@ -119,31 +119,49 @@ def register():
 # ─────────────────────────────────────────────────────────────
 @app.route("/api/login", methods=["POST"])
 def login():
-    data = request.json
-    username = data.get("username", "")
+    data     = request.json
+    username = data.get("username", "").strip()
     password = data.get("password", "")
 
+    if not username or not password:
+        return jsonify({"error": "Username and password required"}), 400
+
     try:
-        db = get_db()
-        cursor = db.cursor(dictionary=True)
+        db = get_db(); cursor = db.cursor(dictionary=True)
         cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
         cursor.close(); db.close()
 
-        if not user or not bcrypt.checkpw(password.encode(), user["password"].encode()):
+        if not user:
+            return jsonify({"error": "Invalid credentials"}), 401
+
+        # Safe bcrypt check — handles plain text passwords too
+        try:
+            ok = bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8"))
+        except Exception:
+            ok = (password == user["password"])
+            if ok:
+                # Auto-upgrade plain text to bcrypt
+                new_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
+                db2 = get_db(); cur2 = db2.cursor()
+                cur2.execute("UPDATE users SET password=%s WHERE username=%s", (new_hash, username))
+                db2.commit(); cur2.close(); db2.close()
+
+        if not ok:
             return jsonify({"error": "Invalid credentials"}), 401
 
         token = jwt.encode({
-            "user_id": user["id"],
+            "user_id":  user["id"],
             "username": user["username"],
-            "role": user["role"],
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=8)
+            "role":     user["role"],
+            "exp":      datetime.datetime.utcnow() + datetime.timedelta(hours=8)
         }, SECRET_KEY, algorithm="HS256")
 
         return jsonify({
-            "token": token,
+            "token":    token,
             "username": user["username"],
-            "role": user["role"]
+            "role":     user["role"],
+            "message":  "Login successful"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
