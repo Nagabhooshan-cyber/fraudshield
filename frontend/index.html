@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FraudShield — AI Detection System</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:      #0a0c10;
+    --surface: #11141b;
+    --card:    #161b25;
+    --border:  #1e2535;
+    --accent:  #00ff88;
+    --danger:  #ff3b5c;
+    --warn:    #ffb830;
+    --text:    #e2e8f0;
+    --muted:   #64748b;
+    --mono:    'Space Mono', monospace;
+    --sans:    'Syne', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(0,255,136,.03) 1px,transparent 1px), linear-gradient(90deg,rgba(0,255,136,.03) 1px,transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+
+  /* ── AUTH ── */
+  #auth-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); z-index: 100; }
+  .auth-box { background: var(--card); border: 1px solid var(--border); border-top: 2px solid var(--accent); padding: 2.5rem 2rem; width: 100%; max-width: 400px; }
+  .auth-logo { font-family: var(--mono); font-size: 1.1rem; color: var(--accent); margin-bottom: 1.5rem; letter-spacing: 2px; }
+  .auth-box h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: .3rem; }
+  .auth-box p  { color: var(--muted); font-size: .9rem; margin-bottom: 1.5rem; }
+  .tabs { display: flex; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+  .tab-btn { background: none; border: none; color: var(--muted); font-family: var(--mono); font-size: .8rem; letter-spacing: 1px; padding: .6rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  label { display: block; font-size: .75rem; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; margin-bottom: .4rem; }
+  input[type="text"], input[type="email"], input[type="password"], input[type="number"], select {
+    width: 100%; padding: .7rem .9rem; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); font-family: var(--mono); font-size: .85rem; outline: none; margin-bottom: 1rem; transition: border .2s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  select option { background: var(--surface); }
+  .btn { display: inline-block; padding: .75rem 1.5rem; background: var(--accent); color: #000; font-family: var(--mono); font-size: .85rem; font-weight: 700; letter-spacing: 1px; border: none; cursor: pointer; transition: opacity .2s; width: 100%; }
+  .btn:hover { opacity: .85; }
+  .auth-error { background: rgba(255,59,92,.1); border: 1px solid var(--danger); color: var(--danger); padding: .6rem .9rem; font-family: var(--mono); font-size: .8rem; margin-bottom: 1rem; display: none; }
+
+  /* ── APP ── */
+  #app { display: none; position: relative; z-index: 1; }
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; }
+  .nav-logo { font-family: var(--mono); color: var(--accent); font-size: 1rem; letter-spacing: 2px; }
+  .nav-right { display: flex; align-items: center; gap: 1rem; }
+  .nav-user { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  .logout-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-family: var(--mono); font-size: .75rem; padding: .4rem .8rem; cursor: pointer; letter-spacing: 1px; transition: all .2s; }
+  .logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  .layout { display: flex; min-height: calc(100vh - 60px); }
+  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 1.5rem 0; flex-shrink: 0; }
+  .sidebar-item { display: flex; align-items: center; gap: .75rem; padding: .75rem 1.5rem; font-family: var(--mono); font-size: .8rem; letter-spacing: 1px; color: var(--muted); cursor: pointer; border-left: 2px solid transparent; transition: all .2s; }
+  .sidebar-item:hover, .sidebar-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,255,136,.05); }
+  .sidebar-icon { font-size: 1rem; }
+  .content { flex: 1; padding: 2rem; overflow-y: auto; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-header { margin-bottom: 2rem; }
+  .page-header h1 { font-size: 1.6rem; font-weight: 800; }
+  .page-header p  { color: var(--muted); font-size: .9rem; margin-top: .25rem; }
+
+  /* ── STAT CARDS ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); padding: 1.25rem 1.5rem; position: relative; overflow: hidden; }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .stat-card.green::before  { background: var(--accent); }
+  .stat-card.red::before    { background: var(--danger); }
+  .stat-card.yellow::before { background: var(--warn); }
+  .stat-card.blue::before   { background: #3b82f6; }
+  .stat-label { font-family: var(--mono); font-size: .7rem; color: var(--muted); letter-spacing: 1px; margin-bottom: .5rem; }
+  .stat-val   { font-size: 1.8rem; font-weight: 800; }
+  .stat-val.green  { color: var(--accent); }
+  .stat-val.red    { color: var(--danger); }
+  .stat-val.yellow { color: var(--warn); }
+
+  /* ── PREDICT FORM ── */
+  .predict-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .form-card { background: var(--card); border: 1px solid var(--border); padding: 1.5rem; border-top: 2px solid var(--accent); }
+  .form-card h3 { font-family: var(--mono); font-size: .85rem; letter-spacing: 1px; color: var(--accent); margin-bottom: 1.25rem; }
+  .prefill-bar { display: flex; gap: .75rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
+  .prefill-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-family: var(--mono); font-size: .75rem; padding: .4rem .9rem; cursor: pointer; letter-spacing: 1px; transition: all .2s; }
+  .prefill-btn:hover          { border-color: var(--accent); color: var(--accent); }
+  .prefill-btn.fraud-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* ── RESULT ── */
+  .result-panel { background: var(--card); border: 1px solid var(--border); padding: 2rem; margin-top: 1.5rem; text-align: center; display: none; }
+  .result-panel.show { display: block; animation: slideIn .3s ease; }
+  @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  .result-badge { display: inline-block; padding: .5rem 1.5rem; font-family: var(--mono); font-size: 1rem; font-weight: 700; letter-spacing: 2px; margin-bottom: 1rem; }
+  .badge-fraud  { background: rgba(255,59,92,.15); color: var(--danger); border: 1px solid var(--danger); }
+  .badge-safe   { background: rgba(0,255,136,.1);  color: var(--accent); border: 1px solid var(--accent); }
+  .result-msg   { font-size: 1.2rem; font-weight: 800; margin-bottom: .5rem; }
+  .result-prob  { font-family: var(--mono); font-size: .85rem; color: var(--muted); }
+  .prob-bar-wrap { height: 6px; background: var(--border); margin: 1rem auto; width: 60%; }
+  .prob-bar      { height: 100%; background: var(--accent); transition: width .6s ease; }
+  .prob-bar.danger { background: var(--danger); }
+
+  /* ── TABLE ── */
+  .table-wrap { background: var(--card); border: 1px solid var(--border); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--surface); }
+  th { padding: .75rem 1rem; text-align: left; font-family: var(--mono); font-size: .7rem; letter-spacing: 1px; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: .7rem 1rem; font-size: .85rem; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .badge-pill { display: inline-block; padding: .2rem .6rem; font-family: var(--mono); font-size: .7rem; font-weight: 700; }
+  .pill-fraud { background: rgba(255,59,92,.15); color: var(--danger); }
+  .pill-safe  { background: rgba(0,255,136,.1);  color: var(--accent); }
+
+  /* ── SPINNER ── */
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; vertical-align: middle; margin-right: .5rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── ABOUT PAGE ── */
+  .about-hero { display: flex; align-items: stretch; background: var(--card); border: 1px solid var(--border); border-top: 3px solid var(--accent); margin-bottom: 1.5rem; overflow: hidden; }
+  .about-hero-item { flex: 1; text-align: center; padding: 1.75rem 1rem; transition: background .2s; }
+  .about-hero-item:hover { background: rgba(0,255,136,.04); }
+  .about-hero-val   { display: block; font-size: 2.2rem; font-weight: 800; color: var(--accent); font-family: var(--mono); line-height: 1; margin-bottom: .4rem; text-shadow: 0 0 20px rgba(0,255,136,.3); }
+  .about-hero-label { display: block; font-family: var(--mono); font-size: .65rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+  .about-hero-div   { width: 1px; background: var(--border); flex-shrink: 0; }
+  .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+  .about-col  { display: flex; flex-direction: column; gap: 1.25rem; }
+  .about-card { background: var(--card); border: 1px solid var(--border); padding: 1.4rem 1.5rem; transition: border-color .2s; }
+  .about-card:hover { border-color: rgba(0,255,136,.2); }
+  .about-card-hdr { display: flex; align-items: center; gap: .6rem; font-family: var(--mono); font-size: .7rem; letter-spacing: 2px; color: var(--accent); margin-bottom: 1.1rem; padding-bottom: .7rem; border-bottom: 1px solid var(--border); }
+  .about-card-hdr::before { content: ''; display: inline-block; width: 3px; height: 12px; background: var(--accent); flex-shrink: 0; }
+  .about-stack { display: flex; flex-direction: column; gap: .45rem; }
+  .about-stack-row { display: flex; align-items: center; gap: .75rem; font-size: .85rem; padding: .4rem .5rem; border: 1px solid transparent; transition: all .15s; }
+  .about-stack-row:hover { background: rgba(255,255,255,.02); border-color: var(--border); }
+  .stk-badge { font-family: var(--mono); font-size: .62rem; letter-spacing: 1px; background: rgba(0,255,136,.08); color: var(--accent); border: 1px solid rgba(0,255,136,.25); padding: .2rem .55rem; min-width: 44px; text-align: center; flex-shrink: 0; }
+  .about-checks { display: flex; flex-direction: column; gap: .5rem; }
+  .achk { display: flex; align-items: center; gap: .75rem; font-size: .85rem; padding: .45rem .5rem; border-left: 2px solid transparent; transition: all .15s; }
+  .achk:hover { border-left-color: var(--accent); background: rgba(0,255,136,.03); }
+  .dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot.g { background: var(--accent); box-shadow: 0 0 7px var(--accent); }
+  .dot.y { background: var(--warn);   box-shadow: 0 0 7px var(--warn); }
+  .about-flow { display: flex; flex-direction: column; gap: 0; }
+  .aflow-step { background: var(--surface); border: 1px solid var(--border); padding: .6rem 1rem; font-family: var(--mono); font-size: .8rem; text-align: center; transition: background .15s; }
+  .aflow-step:hover { background: rgba(255,255,255,.03); }
+  .aflow-highlight { background: rgba(0,255,136,.07); border-color: rgba(0,255,136,.3); color: var(--accent); font-weight: 700; }
+  .aflow-arrow { font-family: var(--mono); font-size: .68rem; color: var(--muted); text-align: center; padding: .3rem 0; letter-spacing: 2px; }
+  .ipoint-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap: .75rem; margin-top: 1.25rem; }
+  .ipoint { display: flex; gap: .75rem; align-items: flex-start; background: var(--surface); border: 1px solid var(--border); padding: .85rem 1rem; transition: border-color .2s; }
+  .ipoint:hover { border-color: rgba(0,255,136,.25); }
+  .ipoint-icon { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+  .ipoint-text { font-size: .83rem; line-height: 1.5; }
+  .ipoint-text strong { color: var(--accent); font-family: var(--mono); font-size: .75rem; display: block; margin-bottom: .2rem; letter-spacing: .5px; }
+
+  /* ── CONTACT ── */
+  .contact-section { margin-top: 1.5rem; background: var(--card); border: 1px solid var(--border); border-top: 3px solid var(--accent); padding: 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.5rem; }
+  .contact-title { font-family: var(--mono); font-size: .7rem; letter-spacing: 2px; color: var(--accent); display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+  .contact-title::before { content: ''; display: inline-block; width: 3px; height: 12px; background: var(--accent); }
+  .contact-name  { font-size: 1.25rem; font-weight: 800; }
+  .contact-role  { font-family: var(--mono); font-size: .78rem; color: var(--muted); margin-top: .15rem; }
+  .contact-links { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-top: .75rem; }
+  .contact-chip  { display: inline-flex; align-items: center; gap: .5rem; background: var(--surface); border: 1px solid var(--border); padding: .55rem 1.1rem; font-family: var(--mono); font-size: .8rem; color: var(--text); text-decoration: none; transition: all .2s; }
+  .contact-chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,.05); }
+  .contact-badge { background: rgba(0,255,136,.1); border: 1px solid rgba(0,255,136,.3); color: var(--accent); font-family: var(--mono); font-size: .65rem; letter-spacing: 2px; padding: .3rem .8rem; }
+
+  @media(max-width:768px) {
+    .predict-grid, .about-grid, .ipoint-grid { grid-template-columns: 1fr; }
+    .about-hero { flex-wrap: wrap; } .about-hero-div { display: none; }
+    .sidebar { width: 60px; } .sidebar-item span:last-child { display: none; }
+    nav, .content { padding: .75rem 1rem; }
+    .contact-section { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════ AUTH SCREEN ══════════ -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">⬡ FRAUDSHIELD v2.0</div>
+    <h2>Secure Access</h2>
+    <p>AI-powered financial fraud detection</p>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('login')">LOGIN</button>
+      <button class="tab-btn" onclick="switchTab('register')">REGISTER</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+    <div id="login-form">
+      <label>USERNAME</label>
+      <input type="text" id="login-username" placeholder="admin"/>
+      <label>PASSWORD</label>
+      <input type="password" id="login-password" placeholder="••••••••"/>
+      <button class="btn" onclick="doLogin()">ACCESS SYSTEM →</button>
+    </div>
+    <div id="register-form" style="display:none">
+      <label>USERNAME</label>
+      <input type="text" id="reg-username" placeholder="johndoe"/>
+      <label>EMAIL</label>
+      <input type="email" id="reg-email" placeholder="john@example.com"/>
+      <label>PASSWORD</label>
+      <input type="password" id="reg-password" placeholder="min 6 characters"/>
+      <button class="btn" onclick="doRegister()">CREATE ACCOUNT →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MAIN APP ══════════ -->
+<div id="app">
+  <nav>
+    <div class="nav-logo">⬡ FRAUDSHIELD</div>
+    <div class="nav-right">
+      <span class="nav-user" id="nav-username">—</span>
+      <button class="logout-btn" onclick="logout()">LOGOUT</button>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-item active" onclick="showPage('dashboard')"><span class="sidebar-icon">📊</span><span>DASHBOARD</span></div>
+      <div class="sidebar-item" onclick="showPage('predict')"><span class="sidebar-icon">🔍</span><span>SCAN TXN</span></div>
+      <div class="sidebar-item" onclick="showPage('history')"><span class="sidebar-icon">📋</span><span>HISTORY</span></div>
+      <div class="sidebar-item" onclick="showPage('about')"><span class="sidebar-icon">ℹ️</span><span>ABOUT</span></div>
+    </aside>
+
+    <main class="content">
+
+      <!-- ── DASHBOARD ── -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header"><h1>Overview Dashboard</h1><p>Real-time transaction monitoring and fraud statistics</p></div>
+        <div class="stats-grid">
+          <div class="stat-card green"><div class="stat-label">TOTAL TRANSACTIONS</div><div class="stat-val green" id="stat-total">—</div></div>
+          <div class="stat-card red"><div class="stat-label">FRAUD DETECTED</div><div class="stat-val red" id="stat-fraud">—</div></div>
+          <div class="stat-card yellow"><div class="stat-label">FRAUD RATE</div><div class="stat-val yellow" id="stat-rate">—</div></div>
+          <div class="stat-card blue"><div class="stat-label">FRAUD AMOUNT (₹)</div><div class="stat-val" style="color:#3b82f6" id="stat-amount">—</div></div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);padding:1.5rem">
+          <h3 style="font-family:var(--mono);font-size:.85rem;letter-spacing:1px;color:var(--accent);margin-bottom:1rem">RECENT TRANSACTIONS</h3>
+          <div id="dashboard-table">Loading...</div>
+        </div>
+      </div>
+
+      <!-- ── SCAN TXN ── -->
+      <div class="page" id="page-predict">
+        <div class="page-header"><h1>Scan Transaction</h1><p>Enter transaction details to run AI fraud analysis</p></div>
+
+        <div class="prefill-bar">
+          <span style="font-family:var(--mono);font-size:.75rem;color:var(--muted)">QUICK FILL:</span>
+          <button class="prefill-btn fraud-btn" onclick="fillFraud()">⚠ FRAUD EXAMPLE</button>
+          <button class="prefill-btn"           onclick="fillSafe()">✓ SAFE EXAMPLE</button>
+          <button class="prefill-btn"           onclick="clearForm()">✕ CLEAR</button>
+        </div>
+
+        <div class="predict-grid">
+          <div class="form-card">
+            <h3>TRANSACTION DETAILS</h3>
+            <label>AMOUNT (₹)</label>
+            <input type="number" id="p-amount" placeholder="e.g. 5000" min="1"/>
+            <label>HOUR OF DAY (0–23)</label>
+            <input type="number" id="p-hour" placeholder="e.g. 14" min="0" max="23"/>
+            <label>MERCHANT NAME</label>
+            <input type="text" id="p-merchant" placeholder="e.g. Amazon"/>
+            <label>CARD LAST 4 DIGITS</label>
+            <input type="text" id="p-card" placeholder="e.g. 4521" maxlength="4"/>
+          </div>
+
+          <div class="form-card">
+            <h3>RISK INDICATORS</h3>
+            <label>MERCHANT CATEGORY</label>
+            <select id="p-category">
+              <option value="0">0 — Grocery</option>
+              <option value="1">1 — Retail</option>
+              <option value="2">2 — Fuel</option>
+              <option value="3">3 — Restaurant</option>
+              <option value="4">4 — Travel</option>
+              <option value="5">5 — Healthcare</option>
+              <option value="6">6 — Electronics</option>
+              <option value="7">7 — Entertainment</option>
+              <option value="8">8 — Cryptocurrency</option>
+              <option value="9">9 — Unknown / Other</option>
+            </select>
+            <label>TRANSACTIONS IN LAST 24H</label>
+            <input type="number" id="p-count" placeholder="e.g. 3" min="0"/>
+            <label>DISTANCE FROM HOME (km)</label>
+            <input type="number" id="p-distance" placeholder="e.g. 15" min="0"/>
+            <label>TRANSACTION TYPE</label>
+            <select id="p-online">
+              <option value="0">In-Person / POS</option>
+              <option value="1">Online / Digital</option>
+            </select>
+            <label>LOCATION</label>
+            <input type="text" id="p-location" placeholder="e.g. Mumbai, MH"/>
+          </div>
+        </div>
+
+        <button class="btn" onclick="doPredict()" style="max-width:300px;margin-top:1.5rem" id="predict-btn">
+          RUN FRAUD ANALYSIS →
+        </button>
+
+        <div class="result-panel" id="result-panel">
+          <div class="result-badge" id="result-badge">—</div>
+          <div class="result-msg"   id="result-msg">—</div>
+          <div class="result-prob"  id="result-prob">—</div>
+          <div class="prob-bar-wrap"><div class="prob-bar" id="prob-bar" style="width:0%"></div></div>
+          <div id="result-risk" style="font-family:var(--mono);font-size:.8rem;margin-top:.5rem"></div>
+        </div>
+      </div>
+
+      <!-- ── HISTORY ── -->
+      <div class="page" id="page-history">
+        <div class="page-header"><h1>Transaction History</h1><p>All scanned transactions stored in MySQL database</p></div>
+        <div class="table-wrap" id="history-table">Loading...</div>
+      </div>
+
+      <!-- ── ABOUT ── -->
+      <div class="page" id="page-about">
+  <div class="page-header">
+    <h1>System Info</h1>
+    <p>Architecture, stack, and technical overview of FraudShield</p>
+  </div>
+
+  <!-- HERO -->
+  <div class="about-hero">
+    <div class="about-hero-item">
+      <span class="about-hero-val">10,000+</span>
+      <span class="about-hero-label">Synthetic Transactions</span>
+    </div>
+    <div class="about-hero-div"></div>
+    <div class="about-hero-item">
+      <span class="about-hero-val">~92–96%</span>
+      <span class="about-hero-label">Model Accuracy</span>
+    </div>
+    <div class="about-hero-div"></div>
+    <div class="about-hero-item">
+      <span class="about-hero-val">6</span>
+      <span class="about-hero-label">ML Features</span>
+    </div>
+    <div class="about-hero-div"></div>
+    <div class="about-hero-item">
+      <span class="about-hero-val">6</span>
+      <span class="about-hero-label">REST Endpoints</span>
+    </div>
+  </div>
+
+  <div class="about-grid">
+
+    <!-- LEFT COLUMN -->
+    <div class="about-col">
+
+      <!-- TECH STACK -->
+      <div class="about-card">
+        <div class="about-card-hdr">TECH STACK</div>
+        <div class="about-stack">
+          <div class="about-stack-row">
+            <span class="stk-badge">Data</span>
+            <span>Synthetic dataset with realistic fraud patterns</span>
+          </div>
+          <div class="about-stack-row">
+            <span class="stk-badge">ML</span>
+            <span>Random Forest · Scikit-learn · SMOTE</span>
+          </div>
+          <div class="about-stack-row">
+            <span class="stk-badge">API</span>
+            <span>Python · Flask · REST · JWT</span>
+          </div>
+          <div class="about-stack-row">
+            <span class="stk-badge">DB</span>
+            <span>MySQL · Relational Schema</span>
+          </div>
+          <div class="about-stack-row">
+            <span class="stk-badge">UI</span>
+            <span>HTML · CSS · JavaScript</span>
+          </div>
+          <div class="about-stack-row">
+            <span class="stk-badge">Auth</span>
+            <span>JWT Tokens · bcrypt</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEATURE ENGINEERING -->
+      <div class="about-card">
+        <div class="about-card-hdr">FEATURE ENGINEERING</div>
+        <div class="about-checks">
+          <div class="achk"><span class="dot g"></span><strong>amount</strong> — transaction amount in ₹</div>
+          <div class="achk"><span class="dot g"></span><strong>hour_of_day</strong> — 24-hour format (0–23)</div>
+          <div class="achk"><span class="dot g"></span><strong>merchant_category</strong> — encoded category (0–9)</div>
+          <div class="achk"><span class="dot g"></span><strong>transaction_count_24h</strong> — recent activity</div>
+          <div class="achk"><span class="dot g"></span><strong>distance_from_home_km</strong> — location deviation</div>
+          <div class="achk"><span class="dot g"></span><strong>is_online</strong> — online vs offline transaction</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="about-col">
+
+      <!-- ARCHITECTURE -->
+      <div class="about-card">
+        <div class="about-card-hdr">ARCHITECTURE FLOW</div>
+        <div class="about-flow">
+          <div class="aflow-step">User enters transaction details in UI</div>
+          <div class="aflow-arrow">↓</div>
+          <div class="aflow-step">Frontend sends JSON to Flask API</div>
+          <div class="aflow-arrow">↓</div>
+          <div class="aflow-step">Input mapped to ML feature vector</div>
+          <div class="aflow-arrow">↓</div>
+          <div class="aflow-step">StandardScaler normalizes features</div>
+          <div class="aflow-arrow">↓</div>
+          <div class="aflow-highlight">Random Forest Model predicts fraud</div>
+          <div class="aflow-arrow">↓</div>
+          <div class="aflow-step">Probability + Risk Level calculated</div>
+          <div class="aflow-arrow">↓</div>
+          <div class="aflow-step">Result stored in MySQL + shown in UI</div>
+        </div>
+      </div>
+
+      <!-- SECURITY -->
+      <div class="about-card">
+        <div class="about-card-hdr">SECURITY</div>
+        <div class="about-checks">
+          <div class="achk"><span class="dot g"></span>JWT authentication with expiry handling</div>
+          <div class="achk"><span class="dot g"></span>Automatic logout on token expiration</div>
+          <div class="achk"><span class="dot g"></span>bcrypt password hashing</div>
+          <div class="achk"><span class="dot g"></span>Role-based access control</div>
+          <div class="achk"><span class="dot g"></span>Input validation on all endpoints</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- INTERVIEW POINTS -->
+  <div style="margin-top:1.5rem">
+    <div style="font-family:var(--mono);font-size:.7rem;letter-spacing:2px;color:var(--accent);margin-bottom:1rem;">
+      INTERVIEW TALKING POINTS
+    </div>
+
+    <div class="ipoint-grid">
+
+      <div class="ipoint">
+        <span class="ipoint-icon">🧠</span>
+        <div class="ipoint-text">
+          <strong>REALISTIC DATA DESIGN</strong>
+          Synthetic dataset includes noise and overlapping patterns to simulate real-world fraud scenarios.
+        </div>
+      </div>
+
+      <div class="ipoint">
+        <span class="ipoint-icon">⚖️</span>
+        <div class="ipoint-text">
+          <strong>CLASS IMBALANCE HANDLING</strong>
+          SMOTE applied only on training data to avoid data leakage and ensure correct evaluation.
+        </div>
+      </div>
+
+      <div class="ipoint">
+        <span class="ipoint-icon">🧠</span>
+        <div class="ipoint-text">
+          <strong>WHY RANDOM FOREST?</strong>
+          Handles non-linear patterns, robust to noise, and reduces overfitting via ensemble learning.
+        </div>
+      </div>
+
+      <div class="ipoint">
+        <span class="ipoint-icon">🔄</span>
+        <div class="ipoint-text">
+          <strong>FEATURE MAPPING</strong>
+          Frontend inputs are mapped directly into ML model features ensuring seamless integration.
+        </div>
+      </div>
+
+      <div class="ipoint">
+        <span class="ipoint-icon">🔐</span>
+        <div class="ipoint-text">
+          <strong>JWT AUTHENTICATION</strong>
+          Stateless authentication system with secure token-based access control.
+        </div>
+      </div>
+
+      <div class="ipoint">
+        <span class="ipoint-icon">🚀</span>
+        <div class="ipoint-text">
+          <strong>SCALABILITY</strong>
+          Can be extended with real datasets, streaming systems, and cloud deployment.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CONTACT -->
+  <div class="contact-section">
+    <div>
+      <div class="contact-title">DEVELOPER CONTACT</div>
+      <div class="contact-name">Nagabhooshan</div>
+      <div class="contact-role">Full Stack Developer · ML Engineer</div>
+      <div class="contact-links">
+        <a class="contact-chip" href="mailto:nagabhooshan41@gmail.com">✉ nagabhooshan41@gmail.com</a>
+        <a class="contact-chip" href="https://github.com/Nagabhooshan-cyber" target="_blank">⌥ GitHub</a>
+        <a class="contact-chip" href="https://linkedin.com/in/nagabhooshan-bhat-a5643b2a1" target="_blank">in LinkedIn</a>
+      </div>
+    </div>
+    <span class="contact-badge">OPEN TO OPPORTUNITIES</span>
+  </div>
+
+</div>
+      </div><!-- end about -->
+    </main>
+  </div>
+</div>
+
+<script>
+const API = "http://localhost:5000/api";
+let token = localStorage.getItem("token");
+window.onload = () => { if (token) showApp(); };
+
+// ── Auth ──
+function switchTab(tab) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  event.target.classList.add("active");
+  document.getElementById("login-form").style.display    = tab === "login"    ? "block" : "none";
+  document.getElementById("register-form").style.display = tab === "register" ? "block" : "none";
+  hideAuthError();
+}
+function showAuthError(msg, ok=false) {
+  const el = document.getElementById("auth-error");
+  el.textContent = msg; el.style.display = "block";
+  el.style.color = ok ? "var(--accent)" : "var(--danger)";
+  el.style.borderColor = ok ? "var(--accent)" : "var(--danger)";
+}
+function hideAuthError() { document.getElementById("auth-error").style.display = "none"; }
+
+async function doLogin() {
+  const username = document.getElementById("login-username").value.trim();
+  const password = document.getElementById("login-password").value;
+  if (!username || !password) return showAuthError("Fill all fields");
+  try {
+    const res  = await fetch(`${API}/login`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username,password}) });
+    const data = await res.json();
+    if (!res.ok) return showAuthError(data.error || "Login failed");
+    token = data.token;
+    localStorage.setItem("token", token);
+    localStorage.setItem("username", data.username);
+    showApp();
+  } catch { showAuthError("Cannot connect — is Flask running on port 5000?"); }
+}
+
+async function doRegister() {
+  const username = document.getElementById("reg-username").value.trim();
+  const email    = document.getElementById("reg-email").value.trim();
+  const password = document.getElementById("reg-password").value;
+  if (!username || !email || !password) return showAuthError("Fill all fields");
+  try {
+    const res  = await fetch(`${API}/register`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username,email,password}) });
+    const data = await res.json();
+    if (!res.ok) return showAuthError(data.error || "Registration failed");
+    showAuthError("✅ Registered! Please login.", true);
+  } catch { showAuthError("Cannot connect to server."); }
+}
+
+function showApp() {
+  document.getElementById("auth-screen").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("nav-username").textContent = localStorage.getItem("username") || "user";
+  loadDashboard();
+}
+function logout() { localStorage.clear(); token = null; location.reload(); }
+
+function showPage(name) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".sidebar-item").forEach(i => i.classList.remove("active"));
+  document.getElementById(`page-${name}`).classList.add("active");
+  event.currentTarget.classList.add("active");
+  if (name === "history")   loadHistory();
+  if (name === "dashboard") loadDashboard();
+}
+
+function authHeaders() { return { "Content-Type":"application/json", "Authorization":`Bearer ${token}` }; }
+
+// ── Dashboard ──
+async function loadDashboard() {
+  try {
+    const [sRes, tRes] = await Promise.all([
+      fetch(`${API}/stats`,                { headers: authHeaders() }),
+      fetch(`${API}/transactions?limit=5`, { headers: authHeaders() })
+    ]);
+    const stats = await sRes.json();
+    const txns  = await tRes.json();
+    document.getElementById("stat-total").textContent  = stats.total       ?? "—";
+    document.getElementById("stat-fraud").textContent  = stats.fraud_count ?? "—";
+    document.getElementById("stat-rate").textContent   = (stats.fraud_rate ?? "—") + "%";
+    document.getElementById("stat-amount").textContent = stats.fraud_amount ? "₹" + parseFloat(stats.fraud_amount).toLocaleString() : "—";
+    document.getElementById("dashboard-table").innerHTML = buildTable(Array.isArray(txns) ? txns : []);
+  } catch {
+    document.getElementById("dashboard-table").innerHTML = `<div style="padding:1rem;font-family:var(--mono);color:var(--danger)">⚠ Cannot reach API — is Flask running on port 5000?</div>`;
+  }
+}
+
+// ── History ──
+async function loadHistory() {
+  document.getElementById("history-table").innerHTML = "Loading...";
+  try {
+    const res  = await fetch(`${API}/transactions?limit=100`, { headers: authHeaders() });
+    const data = await res.json();
+    document.getElementById("history-table").innerHTML = buildTable(Array.isArray(data) ? data : []);
+  } catch {
+    document.getElementById("history-table").innerHTML = `<div style="padding:1rem;font-family:var(--mono);color:var(--danger)">⚠ API error</div>`;
+  }
+}
+
+// ── Table ──
+function buildTable(rows) {
+  if (!rows.length) return `<div style="padding:1.5rem;font-family:var(--mono);color:var(--muted)">No transactions yet.</div>`;
+  return `<table><thead><tr><th>ID</th><th>AMOUNT</th><th>MERCHANT</th><th>LOCATION</th><th>RESULT</th><th>PROBABILITY</th><th>DATE</th></tr></thead>
+  <tbody>${rows.map(r => `<tr>
+    <td style="font-family:var(--mono);color:var(--muted)">#${r.id}</td>
+    <td>₹${parseFloat(r.amount).toLocaleString()}</td>
+    <td>${r.merchant_name||"—"}</td>
+    <td>${r.location||"—"}</td>
+    <td><span class="badge-pill ${r.is_fraud?'pill-fraud':'pill-safe'}">${r.is_fraud?"⚠ FRAUD":"✓ SAFE"}</span></td>
+    <td style="font-family:var(--mono)">${r.fraud_probability?(r.fraud_probability*100).toFixed(1)+"%":"—"}</td>
+    <td style="font-family:var(--mono);font-size:.75rem;color:var(--muted)">${r.created_at?String(r.created_at).split("T")[0]:"—"}</td>
+  </tr>`).join("")}</tbody></table>`;
+}
+
+// ── Quick Fill ──
+function setField(id, val) { document.getElementById(id).value = val; }
+
+function fillFraud() {
+  setField("p-amount",   "25000");
+  setField("p-hour",     "2");
+  setField("p-merchant", "SuspiciousShop");
+  setField("p-card",     "9999");
+  setField("p-count",    "20");
+  setField("p-distance", "800");
+  setField("p-location", "Unknown Location");
+  document.getElementById("p-category").value = "8";  // Crypto
+  document.getElementById("p-online").value   = "1";  // Online
+}
+
+function fillSafe() {
+  setField("p-amount",   "450");
+  setField("p-hour",     "14");
+  setField("p-merchant", "BigBazaar");
+  setField("p-card",     "4521");
+  setField("p-count",    "2");
+  setField("p-distance", "3");
+  setField("p-location", "Bengaluru, KA");
+  document.getElementById("p-category").value = "0";  // Grocery
+  document.getElementById("p-online").value   = "0";  // In-person
+}
+
+function clearForm() {
+  ["p-amount","p-hour","p-merchant","p-card","p-count","p-distance","p-location"]
+    .forEach(id => document.getElementById(id).value = "");
+  document.getElementById("p-category").value = "0";
+  document.getElementById("p-online").value   = "0";
+  document.getElementById("result-panel").classList.remove("show");
+}
+
+// ── Predict ──
+async function doPredict() {
+
+  const amount     = parseFloat(document.getElementById("p-amount").value);
+  const hour       = parseInt(document.getElementById("p-hour").value);
+  const category   = parseInt(document.getElementById("p-category").value);
+  const count24h   = parseInt(document.getElementById("p-count").value);
+  const distanceKm = parseFloat(document.getElementById("p-distance").value);
+  const isOnline   = parseInt(document.getElementById("p-online").value);
+
+  // ✅ Validation
+  if (isNaN(amount)    || amount <= 0)         return alert("Enter valid Amount");
+  if (isNaN(hour)      || hour < 0 || hour > 23) return alert("Hour must be 0–23");
+  if (isNaN(count24h)  || count24h < 0)        return alert("Enter valid transaction count");
+  if (isNaN(distanceKm)|| distanceKm < 0)      return alert("Enter valid distance");
+
+  const payload = {
+    amount,
+    hour_of_day: hour,
+    merchant_category: category,
+    transaction_count_24h: count24h,
+    distance_from_home_km: distanceKm,
+    is_online: isOnline,
+
+    // Optional (DB only)
+    merchant_name: document.getElementById("p-merchant").value || "Unknown",
+    card_last4:    document.getElementById("p-card").value     || "****",
+    location:      document.getElementById("p-location").value || "Unknown"
+  };
+
+  const btn = document.getElementById("predict-btn");
+  btn.innerHTML = `<span class="spinner"></span> ANALYZING...`;
+  btn.disabled  = true;
+
+  document.getElementById("result-panel").classList.remove("show");
+
+  try {
+    const res  = await fetch(`${API}/predict`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert("Error: " + (data.error || "Prediction failed"));
+      return;
+    }
+
+    // ✅ Support both backend formats
+    const isFraud = data.prediction === 1 || data.is_fraud === 1;
+
+    // ✅ UI Badge
+    document.getElementById("result-badge").textContent =
+      isFraud ? "⚠ FRAUD DETECTED" : "✓ LEGITIMATE";
+
+    document.getElementById("result-badge").className =
+      "result-badge " + (isFraud ? "badge-fraud" : "badge-safe");
+
+    // ✅ Message (use backend if exists)
+    document.getElementById("result-msg").textContent =
+      data.message || (isFraud ? "Suspicious transaction detected!" : "Transaction looks safe.");
+
+    // ✅ Probability
+    document.getElementById("result-prob").textContent =
+      `Fraud probability: ${data.probability}%`;
+
+    document.getElementById("prob-bar").style.width =
+      data.probability + "%";
+
+    document.getElementById("prob-bar").className =
+      "prob-bar " + (isFraud ? "danger" : "");
+
+    // ✅ Risk Level (frontend fallback)
+    let riskLevel = data.risk_level || "LOW";
+    if (!data.risk_level) {
+      if (data.probability > 70) riskLevel = "HIGH";
+      else if (data.probability > 40) riskLevel = "MEDIUM";
+    }
+
+    const risk = document.getElementById("result-risk");
+
+    risk.textContent =
+      `Risk Level: ${riskLevel}` +
+      (data.transaction_id ? `  |  Transaction ID: #${data.transaction_id}` : "");
+
+    risk.style.color =
+      riskLevel === "HIGH"   ? "var(--danger)" :
+      riskLevel === "MEDIUM" ? "var(--warn)" :
+                               "var(--accent)";
+
+    document.getElementById("result-panel").classList.add("show");
+
+  } catch (err) {
+    console.error(err);
+    alert("⚠ Cannot connect to backend. Make sure Flask is running.");
+  } finally {
+    btn.innerHTML = "RUN FRAUD ANALYSIS →";
+    btn.disabled  = false;
+  }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+flask
+flask-cors
+scikit-learn
+xgboost
+pandas
+numpy
+joblib
+mysql-connector-python
+bcrypt
+PyJWT
+imbalanced-learn
