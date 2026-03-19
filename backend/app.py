@@ -262,29 +262,51 @@ def get_transactions():
 # ─────────────────────────────────────────────────────────────
 # ROUTE: Dashboard Stats
 # ─────────────────────────────────────────────────────────────
-@app.route("/api/stats", methods=["GET"])
-@token_required
+@app.route("/api/stats")
 def get_stats():
     try:
+        token = request.headers.get("Authorization").split(" ")[1]
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+
+        user_id = decoded["user_id"]
+        role = decoded["role"]
+
         db = get_db()
         cursor = db.cursor(dictionary=True)
 
-        cursor.execute("""
-            SELECT
-                COUNT(*)                                            AS total,
-                SUM(is_fraud)                                       AS fraud_count,
-                ROUND(SUM(is_fraud)/COUNT(*)*100, 2)               AS fraud_rate,
-                ROUND(SUM(amount), 2)                              AS total_amount,
-                ROUND(SUM(CASE WHEN is_fraud=1 THEN amount END), 2) AS fraud_amount
-            FROM transactions
-        """)
-        stats = cursor.fetchone()
-        cursor.close(); db.close()
+        if role == "admin":
+            # ✅ ALL DATA
+            cursor.execute("SELECT COUNT(*) AS total FROM transactions")
+            total = cursor.fetchone()["total"]
 
-        return jsonify(stats)
+            cursor.execute("SELECT COUNT(*) AS fraud_count FROM transactions WHERE is_fraud = 1")
+            fraud = cursor.fetchone()["fraud_count"]
+
+            cursor.execute("SELECT SUM(amount) AS fraud_amount FROM transactions WHERE is_fraud = 1")
+            fraud_amount = cursor.fetchone()["fraud_amount"] or 0
+
+        else:
+            # ✅ USER-SPECIFIC DATA
+            cursor.execute("SELECT COUNT(*) AS total FROM transactions WHERE user_id = %s", (user_id,))
+            total = cursor.fetchone()["total"]
+
+            cursor.execute("SELECT COUNT(*) AS fraud_count FROM transactions WHERE is_fraud = 1 AND user_id = %s", (user_id,))
+            fraud = cursor.fetchone()["fraud_count"]
+
+            cursor.execute("SELECT SUM(amount) AS fraud_amount FROM transactions WHERE is_fraud = 1 AND user_id = %s", (user_id,))
+            fraud_amount = cursor.fetchone()["fraud_amount"] or 0
+
+        fraud_rate = (fraud / total * 100) if total > 0 else 0
+
+        return jsonify({
+            "total": total,
+            "fraud_count": fraud,
+            "fraud_rate": round(fraud_rate, 2),
+            "fraud_amount": fraud_amount
+        })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 # ─────────────────────────────────────────────────────────────
 # ROUTE: Health Check
 # ─────────────────────────────────────────────────────────────
