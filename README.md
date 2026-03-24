@@ -42,7 +42,6 @@ fraud_detection/
 
 - User Registration
 - Email OTP Verification
-- Login with JWT
 - Remember Me Option
 - Forgot Password
 - Reset Password via Email
@@ -103,8 +102,6 @@ DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=railway
 DB_PORT=your_port
-
-JWT_SECRET=your_secret
 
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_app_password
