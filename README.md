@@ -1,236 +1,286 @@
 # ⬡ FraudShield — AI Financial Fraud Detection System
- 
-A full-stack AI-powered fraud detection system built using **Machine Learning, Flask REST APIs, MySQL database (Railway), and an interactive web dashboard**.
- 
+
+A full-stack AI-powered fraud detection system built using **Machine Learning, Flask REST APIs, Railway MySQL database, Netlify frontend, and Render backend deployment**.
+
 ---
- 
+
+# 🚀 Live Architecture
+
+```
+Frontend  → Netlify
+Backend   → Render
+Database  → Railway MySQL
+ML Model  → Flask API
+```
+
+---
+
 ## 📁 Project Structure
- 
+
 ```
 fraud_detection/
 ├── ml/
-│   └── train_model.py        ← Train ML model
+│   └── train_model.py
 ├── backend/
-│   ├── app.py                ← Flask API
-│   ├── setup_db.sql          ← MySQL schema
-│   ├── fraud_model.pkl       ← Trained model
-│   ├── scaler.pkl            ← Feature scaler
-│   └── .env                  ← Environment variables (NOT pushed)
+│   ├── app.py
+│   ├── setup_db.sql
+│   ├── fraud_model.pkl
+│   ├── scaler.pkl
+│   └── .env
 ├── frontend/
-│   └── index.html            ← UI Dashboard
+│   ├── index.html
+│   └── reset.html
 ├── requirements.txt
 └── README.md
 ```
- 
+
 ---
- 
-## 🚀 Setup Instructions
- 
-### STEP 1 — Install Dependencies
- 
+
+# 🚀 Features
+
+## 🔐 Authentication
+
+- User Registration
+- Email OTP Verification
+- Login with JWT
+- Remember Me Option
+- Forgot Password
+- Reset Password via Email
+- Account Lock after 5 Failed Attempts
+- Auto Unlock after 1 Hour
+
+---
+
+## 🤖 Fraud Detection
+
+- Real-time Fraud Prediction
+- ML Model (Random Forest)
+- Risk Probability Score
+- Fraud Detection Dashboard
+- Transaction History
+
+---
+
+## 📊 Dashboard Features
+
+- Total Transactions
+- Fraud Count
+- Fraud Rate
+- Fraud Amount
+- Role Based Access
+
+---
+
+# 🚀 Setup Instructions
+
+## STEP 1 — Install Dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
- 
+
 ---
- 
-### STEP 2 — Setup Database (Local or Railway)
- 
-#### ▶ Option 1: Local MySQL
- 
+
+## STEP 2 — Setup Database
+
+### ▶ Railway MySQL (Recommended)
+
+Run:
+
 ```bash
-mysql -u root -p < backend/setup_db.sql
+mysql -h <HOST> -u root -p --port <PORT> railway < backend/setup_db.sql
 ```
- 
-#### ▶ Option 2: Railway MySQL (Recommended for deployment)
- 
-Use the Railway connection details and run:
- 
-```bash
-mysql -h <HOST> -u root -p --port <PORT> railway < setup_db.sql
-```
- 
+
 ---
- 
-### STEP 3 — Configure Environment Variables
- 
-Create `.env` file inside `backend/`:
- 
+
+## STEP 3 — Configure Environment Variables
+
+Create `.env` file inside `backend/`
+
 ```env
 DB_HOST=your_host
 DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=railway
 DB_PORT=your_port
-SECRET_KEY=your_secret_key
+
+JWT_SECRET=your_secret
+
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
 ```
- 
+
 ---
- 
-### STEP 4 — Train ML Model
- 
+
+## STEP 4 — Train Model
+
 ```bash
 cd ml
 python train_model.py
 ```
- 
+
 Generates:
- 
-* `fraud_model.pkl`
-* `scaler.pkl`
- 
+
+- fraud_model.pkl
+- scaler.pkl
+
 ---
- 
-### STEP 5 — Run Backend
- 
+
+## STEP 5 — Run Backend
+
 ```bash
 cd backend
 python app.py
 ```
- 
-API runs at:
- 
+
+Runs at:
+
 ```
 http://localhost:5000
 ```
- 
+
 ---
- 
-### STEP 6 — Open Frontend
- 
+
+## STEP 6 — Open Frontend
+
 Open:
- 
+
 ```
 frontend/index.html
 ```
- 
-Login:
- 
+
+---
+
+# 🔌 API Endpoints
+
+| Method | Endpoint             | Auth | Description      |
+| ------ | -------------------- | ---- | ---------------- |
+| POST   | /api/register        | No   | Register user    |
+| POST   | /api/verify-otp      | No   | OTP verification |
+| POST   | /api/login           | No   | Login            |
+| POST   | /api/forgot-password | No   | Send reset email |
+| POST   | /api/reset-password  | No   | Reset password   |
+| POST   | /api/predict         | Yes  | Fraud prediction |
+| GET    | /api/transactions    | Yes  | Transactions     |
+| GET    | /api/stats           | Yes  | Dashboard stats  |
+| GET    | /api/health          | No   | Health check     |
+
+---
+
+# 🧠 Machine Learning Model
+
+## Features Used
+
+| Feature               | Description         |
+| --------------------- | ------------------- |
+| amount                | Transaction amount  |
+| hour_of_day           | Time of transaction |
+| merchant_category     | Category code       |
+| transaction_count_24h | Frequency           |
+| distance_from_home_km | Location deviation  |
+| is_online             | Online transaction  |
+
+---
+
+# Model Details
+
+- Algorithm: Random Forest
+- Scaling: StandardScaler
+- Imbalance Handling: SMOTE
+- Dataset: Synthetic dataset
+- Accuracy: ~90–95%
+
+---
+
+# 🔐 Security Features
+
+- JWT Authentication
+- bcrypt password hashing
+- OTP Email Verification
+- Forgot Password Reset
+- Account Lock Protection
+- Role Based Access Control
+- Environment Variable Security
+
+---
+
+# 🚀 Deployment
+
+## Frontend (Netlify)
+
+Deploy:
+
 ```
-username: admin
-password: admin123
+frontend/
 ```
- 
+
 ---
- 
-## 🔌 API Endpoints
- 
-| Method | Endpoint            | Auth | Description          |
-| ------ | ------------------- | ---- | -------------------- |
-| POST   | `/api/register`     | No   | Register user        |
-| POST   | `/api/login`        | No   | Login (JWT token)    |
-| POST   | `/api/predict`      | Yes  | Fraud prediction     |
-| GET    | `/api/transactions` | Yes  | Transaction history  |
-| GET    | `/api/stats`        | Yes  | Dashboard statistics |
-| GET    | `/api/health`       | No   | API health check     |
- 
----
- 
-## 🧠 Machine Learning Model
- 
-### Features Used
- 
-| Feature               | Description               |
-| --------------------- | ------------------------- |
-| amount                | Transaction amount        |
-| hour_of_day           | Time (0–23 format)        |
-| merchant_category     | Category code (0–9)       |
-| transaction_count_24h | Transaction frequency     |
-| distance_from_home_km | Location deviation        |
-| is_online             | 1 = online, 0 = in-person |
- 
----
- 
-### Model Details
- 
-* **Algorithm:** Random Forest Classifier
-* **Scaling:** StandardScaler
-* **Imbalance Handling:** SMOTE
-* **Dataset:** Synthetic dataset with realistic fraud patterns
-* **Accuracy:** ~90–95%
- 
-> ⚠️ Note: Model is trained on synthetic data to simulate fraud scenarios. Accuracy is indicative, not production-grade.
- 
----
- 
-## 🔄 System Architecture
- 
+
+## Backend (Render)
+
+Deploy:
+
 ```
-User Input (Frontend)
-        ↓
-Flask API (/predict)
-        ↓
-Feature Extraction
-        ↓
-StandardScaler
-        ↓
-Random Forest Model
-        ↓
-Prediction + Probability
-        ↓
-Response to UI
+backend/
 ```
- 
+
 ---
- 
-## 🔐 Security Features
- 
-* JWT Authentication (8-hour expiry)
-* bcrypt password hashing
-* Role-Based Access Control (admin / viewer)
-* Input validation (frontend + backend)
-* Environment variables for DB security
- 
+
+## Database (Railway)
+
+Railway MySQL Cloud Database
+
 ---
- 
-## 🎯 Key Highlights
- 
-* Full-stack ML system (Frontend + Backend + Model)
-* Real-time fraud prediction
-* Clean UI with interactive dashboard
-* Secure authentication using JWT
-* Proper ML pipeline (scaling + prediction)
-* Modular and deployable architecture
- 
+
+# 🎯 Key Highlights
+
+- Full-stack AI Fraud Detection
+- Production-level Authentication
+- Secure API Design
+- Real-time Fraud Prediction
+- Clean UI Dashboard
+- Cloud Deployment Ready
+
 ---
- 
-## 📊 Sample Use Cases
- 
-### ✅ Legitimate Transaction
- 
+
+# 📊 Example
+
+## Legitimate
+
 ```
 Amount: 450
 Hour: 14
-Transactions: 2
 Distance: 3
-→ Prediction: SAFE
+Prediction: SAFE
 ```
- 
-### 🚨 Fraudulent Transaction
- 
+
+## Fraud
+
 ```
 Amount: 25000
 Hour: 2
-Transactions: 20
 Distance: 800
-→ Prediction: FRAUD
+Prediction: FRAUD
 ```
- 
+
 ---
- 
-## 🚀 Future Enhancements
- 
-* Real dataset integration (Kaggle credit card fraud)
-* Explainable AI (SHAP / feature importance)
-* Real-time streaming (Kafka)
-* Cloud deployment (Render / AWS)
-* Admin dashboard for role management
- 
+
+# 🚀 Future Improvements
+
+- Real dataset integration
+- Explainable AI
+- Real-time streaming
+- Admin user management
+- Multi-factor authentication
+
 ---
- 
-## 👨‍💻 Developer
- 
+
+# 👨‍💻 Developer
+
 **Nagabhooshan Bhat**
-Full Stack Developer · Machine Learning Engineer
- 
+
+AI/ML Engineer
+Full Stack Developer
+
 ---
+
