@@ -71,12 +71,17 @@ import smtplib
 from email.mime.text import MIMEText
 import os
 
+import smtplib
+from email.mime.text import MIMEText
+import os
+
 def send_email(to_email, subject, body):
 
     sender = os.getenv("EMAIL_USER")
     password = os.getenv("EMAIL_PASS")
 
-    print("Sending OTP to:", to_email)
+    print("Sending email from:", sender)
+    print("Sending to:", to_email)
 
     msg = MIMEText(body)
     msg["Subject"] = subject
@@ -84,7 +89,7 @@ def send_email(to_email, subject, body):
     msg["To"] = to_email
 
     try:
-        server = smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=10)
+        server = smtplib.SMTP("smtp-relay.brevo.com", 587)
         server.starttls()
         server.login(sender, password)
         server.sendmail(sender, to_email, msg.as_string())
@@ -93,7 +98,7 @@ def send_email(to_email, subject, body):
         print("Email sent successfully")
 
     except Exception as e:
-        print("Email error:", e)
+        print("Email error:", str(e))
 # ─────────────────────────────────────────────────────────────
 # JWT Decorator
 # ─────────────────────────────────────────────────────────────
