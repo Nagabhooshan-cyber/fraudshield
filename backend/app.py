@@ -67,13 +67,16 @@ def get_db():
 # ─────────────────────────────────────────────────────────────
 # Email Sender
 # ─────────────────────────────────────────────────────────────
+import smtplib
+from email.mime.text import MIMEText
+import os
+
 def send_email(to_email, subject, body):
 
     sender = os.getenv("EMAIL_USER")
     password = os.getenv("EMAIL_PASS")
 
-    print("Sending email from:", sender)
-    print("Sending to:", to_email)
+    print("Sending OTP to:", to_email)
 
     msg = MIMEText(body)
     msg["Subject"] = subject
@@ -81,11 +84,8 @@ def send_email(to_email, subject, body):
     msg["To"] = to_email
 
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.ehlo()
+        server = smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=10)
         server.starttls()
-        server.ehlo()
-
         server.login(sender, password)
         server.sendmail(sender, to_email, msg.as_string())
         server.quit()
@@ -93,7 +93,7 @@ def send_email(to_email, subject, body):
         print("Email sent successfully")
 
     except Exception as e:
-        print("Email error:", str(e))
+        print("Email error:", e)
 # ─────────────────────────────────────────────────────────────
 # JWT Decorator
 # ─────────────────────────────────────────────────────────────
