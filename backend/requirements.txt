@@ -10,3 +10,4 @@ bcrypt
 PyJWT
 imbalanced-learn
 python-dotenv
+requests
