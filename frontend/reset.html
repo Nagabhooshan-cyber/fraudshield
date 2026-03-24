@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FraudShield</title>
+
+<style>
+
+/* COPY SAME STYLES FROM index.html */
+
+body{
+background: radial-gradient(circle at 20% 20%, #0b0f1a, #020617);
+color:#e5e7eb;
+font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+display:flex;
+align-items:center;
+justify-content:center;
+height:100vh;
+}
+
+.auth-box{
+background:#0f172a;
+padding:30px;
+width:360px;
+border-radius:6px;
+border-top:2px solid #22c55e;
+}
+
+h2{
+margin-bottom:15px;
+}
+
+input{
+width:100%;
+padding:10px;
+margin:10px 0;
+background:#020617;
+border:1px solid #1f2937;
+color:white;
+}
+
+.btn{
+width:100%;
+padding:12px;
+background:#22c55e;
+border:none;
+cursor:pointer;
+font-weight:bold;
+}
+
+.success{
+display:none;
+text-align:center;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="auth-box">
+
+<div id="reset-section">
+
+<h2>Reset Password</h2>
+
+<input type="password" id="password" placeholder="New Password">
+<input type="password" id="confirm" placeholder="Confirm Password">
+
+<button class="btn" onclick="resetPassword()">Reset Password</button>
+
+</div>
+
+<div id="success-section" class="success">
+
+<h2>Password Reset Successfully</h2>
+
+<button class="btn" onclick="goLogin()">Go to Login</button>
+
+</div>
+
+</div>
+
+<script>
+
+const API = "https://fraudshield-at3p.onrender.com/api";
+
+const params = new URLSearchParams(window.location.search)
+const token = params.get("token")
+
+async function resetPassword(){
+
+const password = document.getElementById("password").value
+const confirm = document.getElementById("confirm").value
+
+if(password !== confirm){
+alert("Passwords do not match")
+return
+}
+
+const res = await fetch(`${API}/reset-password`,{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({token,password})
+})
+
+const data = await res.json()
+
+if(res.ok){
+
+document.getElementById("reset-section").style.display="none"
+document.getElementById("success-section").style.display="block"
+
+}else{
+
+alert(data.error)
+
+}
+
+}
+
+function goLogin(){
+window.location.href="/"
+}
+
+</script>
+
+</body>
+</html>

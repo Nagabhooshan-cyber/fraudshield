@@ -194,6 +194,19 @@
       <label>PASSWORD</label>
       <input type="password" id="login-password" placeholder="••••••••"/>
       <button class="btn" onclick="doLogin()">ACCESS SYSTEM →</button>
+      <div style="display:flex;justify-content:space-between;margin-top:.5rem">
+  <label style="display:flex;align-items:center;gap:.4rem">
+    <input type="checkbox" id="remember-me" style="width:auto;margin:0">
+    Remember me
+  </label>
+
+  <span 
+    style="font-size:.75rem;color:var(--muted);cursor:pointer"
+    onclick="showForgot()"
+  >
+    Forgot Password?
+  </span>
+</div>
     </div>
     <div id="register-form" style="display:none">
       <label>USERNAME</label>
@@ -202,8 +215,30 @@
       <input type="email" id="reg-email" placeholder="john@example.com"/>
       <label>PASSWORD</label>
       <input type="password" id="reg-password" placeholder="min 6 characters"/>
+      <label>CONFIRM PASSWORD</label>
+      <input type="password" id="reg-confirm" placeholder="re-enter password"/>
       <button class="btn" onclick="doRegister()">CREATE ACCOUNT →</button>
     </div>
+    <div id="otp-form" style="display:none">
+  <label>ENTER OTP</label>
+  <input type="text" id="otp-input" placeholder="Enter OTP"/>
+  <button class="btn" onclick="verifyOTP()">VERIFY OTP →</button>
+</div>
+<div id="forgot-form" style="display:none">
+  <label>EMAIL</label>
+  <input type="email" id="forgot-email" placeholder="Enter email"/>
+  <button class="btn" onclick="forgotPassword()">SEND RESET LINK →</button>
+</div>
+
+<div id="reset-form" style="display:none">
+  <label>NEW PASSWORD</label>
+  <input type="password" id="reset-password"/>
+
+  <label>CONFIRM PASSWORD</label>
+  <input type="password" id="reset-confirm"/>
+
+  <button class="btn" onclick="resetPassword()">RESET PASSWORD →</button>
+</div>
   </div>
 </div>
 
@@ -456,8 +491,8 @@
 </div>
 
 <script>
-const API = "http://localhost:5000/api";
-let token = localStorage.getItem("token");
+const API = "https://fraudshield-at3p.onrender.com/api";
+let token = localStorage.getItem("token") || sessionStorage.getItem("token");
 window.onload = () => { if (token) showApp(); };
 
 // ── Auth ──
@@ -475,34 +510,211 @@ function showAuthError(msg, ok=false) {
   el.style.borderColor = ok ? "var(--accent)" : "var(--danger)";
 }
 function hideAuthError() { document.getElementById("auth-error").style.display = "none"; }
+/* =========================
+   AUTH EXTRA FUNCTIONS
+========================= */
 
-async function doLogin() {
-  const username = document.getElementById("login-username").value.trim();
-  const password = document.getElementById("login-password").value;
-  if (!username || !password) return showAuthError("Fill all fields");
-  try {
-    const res  = await fetch(`${API}/login`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username,password}) });
-    const data = await res.json();
-    if (!res.ok) return showAuthError(data.error || "Login failed");
-    token = data.token;
-    localStorage.setItem("token", token);
-    localStorage.setItem("username", data.username);
-    showApp();
-  } catch { showAuthError("Cannot connect — is Flask running on port 5000?"); }
+function showForgot(){
+  document.getElementById("login-form").style.display="none"
+  document.getElementById("register-form").style.display="none"
+  document.getElementById("otp-form").style.display="none"
+  document.getElementById("forgot-form").style.display="block"
 }
 
+function showLogin(){
+  document.getElementById("login-form").style.display="block"
+  document.getElementById("register-form").style.display="none"
+  document.getElementById("otp-form").style.display="none"
+  document.getElementById("forgot-form").style.display="none"
+  document.getElementById("reset-form").style.display="none"
+}
+
+/* =========================
+   VERIFY OTP
+========================= */
+
+async function verifyOTP(){
+
+  const otp = document.getElementById("otp-input").value
+  const email = localStorage.getItem("verify_email")
+
+  if(!otp)
+    return showAuthError("Enter OTP")
+
+  try{
+
+    const res = await fetch(`${API}/verify-otp`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({email,otp})
+    })
+
+    const data = await res.json()
+
+    if(res.ok){
+
+      showAuthError("Account verified. Please login",true)
+
+      document.getElementById("otp-form").style.display="none"
+      document.getElementById("login-form").style.display="block"
+
+    }else{
+
+      showAuthError(data.error || "OTP failed")
+
+    }
+
+  }catch{
+
+    showAuthError("Server error")
+
+  }
+
+}
+
+/* =========================
+   FORGOT PASSWORD
+========================= */
+
+async function forgotPassword(){
+
+  const email = document.getElementById("forgot-email").value
+
+  if(!email)
+    return showAuthError("Enter email")
+
+  try{
+
+    const res = await fetch(`${API}/forgot-password`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({email})
+    })
+
+    const data = await res.json()
+
+    if(res.ok){
+
+      showAuthError("Reset link sent to email",true)
+
+      showLogin()
+
+    }else{
+
+      showAuthError(data.error)
+
+    }
+
+  }catch{
+
+    showAuthError("Server error")
+
+  }
+
+}
+
+/* =========================
+   RESET PASSWORD
+========================= */
+
+async function resetPassword(){
+
+  const password = document.getElementById("reset-password").value
+  const confirm = document.getElementById("reset-confirm").value
+
+  if(password !== confirm)
+    return showAuthError("Passwords do not match")
+
+}
+
+/* =========================
+   REGISTER WITH OTP
+========================= */
+
 async function doRegister() {
+
   const username = document.getElementById("reg-username").value.trim();
   const email    = document.getElementById("reg-email").value.trim();
   const password = document.getElementById("reg-password").value;
-  if (!username || !email || !password) return showAuthError("Fill all fields");
+  const confirm  = document.getElementById("reg-confirm").value;
+
+  if (!username || !email || !password || !confirm)
+    return showAuthError("Fill all fields")
+
+  if(password !== confirm)
+    return showAuthError("Passwords do not match")
+
   try {
-    const res  = await fetch(`${API}/register`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username,email,password}) });
-    const data = await res.json();
-    if (!res.ok) return showAuthError(data.error || "Registration failed");
-    showAuthError("✅ Registered! Please login.", true);
-  } catch { showAuthError("Cannot connect to server."); }
+
+    const res  = await fetch(`${API}/register`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        username,
+        email,
+        password,
+        confirm_password:confirm
+      })
+    })
+
+    const data = await res.json()
+
+    if(!res.ok)
+      return showAuthError(data.error || "Registration failed")
+
+    localStorage.setItem("verify_email", email)
+
+    document.getElementById("register-form").style.display="none"
+    document.getElementById("otp-form").style.display="block"
+
+    showAuthError("OTP sent to email",true)
+
+  } catch {
+
+    showAuthError("Server error")
+
+  }
+
 }
+async function doLogin() {
+  const username = document.getElementById("login-username").value.trim();
+  const password = document.getElementById("login-password").value;
+  const remember = document.getElementById("remember-me").checked;
+
+  if (!username || !password) 
+    return showAuthError("Fill all fields");
+
+  try {
+    const res  = await fetch(`${API}/login`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({username,password})
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) 
+      return showAuthError(data.error || "Login failed");
+
+    token = data.token;
+
+    // Remember me logic
+    if (remember) {
+      localStorage.setItem("token", token);
+      localStorage.setItem("username", data.username);
+    } else {
+      sessionStorage.setItem("token", token);
+      sessionStorage.setItem("username", data.username);
+    }
+
+    showApp();
+
+  } catch { 
+    showAuthError("Cannot connect — is Flask running on port 5000?"); 
+  }
+}
+
+
 
 function showApp() {
   document.getElementById("auth-screen").style.display = "none";

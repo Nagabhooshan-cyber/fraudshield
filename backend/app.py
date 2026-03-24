@@ -1,8 +1,5 @@
 """
-AI-Based Financial Fraud Detection System
-Flask Backend API
-Run: python app.py
-API runs on: http://localhost:5000
+FraudShield - AI Fraud Detection System
 """
 
 from flask import Flask, request, jsonify, send_from_directory
@@ -14,11 +11,17 @@ import bcrypt
 import jwt
 import os
 import datetime
+import random
+import smtplib
+
+from email.mime.text import MIMEText
 from functools import wraps
 from dotenv import load_dotenv
-import os
+from datetime import timedelta
 
 load_dotenv()
+print("EMAIL:", os.getenv("EMAIL_USER"))
+
 # ─────────────────────────────────────────────────────────────
 # App Configuration
 # ─────────────────────────────────────────────────────────────
@@ -27,7 +30,7 @@ CORS(app)
 
 SECRET_KEY = os.environ.get("JWT_SECRET", "fraud_detect_secret_2024")
 
-# MySQL Config — update with your credentials
+# Database Config
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
     "user": os.getenv("DB_USER"),
@@ -35,9 +38,15 @@ DB_CONFIG = {
     "database": os.getenv("DB_NAME"),
     "port": int(os.getenv("DB_PORT"))
 }
-# Feature columns — must match training order
-FEATURES = ["amount", "hour_of_day", "merchant_category",
-            "transaction_count_24h", "distance_from_home_km", "is_online"]
+
+FEATURES = [
+    "amount",
+    "hour_of_day",
+    "merchant_category",
+    "transaction_count_24h",
+    "distance_from_home_km",
+    "is_online"
+]
 
 # ─────────────────────────────────────────────────────────────
 # Load ML Model
@@ -45,9 +54,8 @@ FEATURES = ["amount", "hour_of_day", "merchant_category",
 try:
     model = joblib.load("fraud_model.pkl")
     scaler = joblib.load("scaler.pkl")
-    print("✅ ML model loaded successfully")
-except FileNotFoundError:
-    print("⚠️  Model not found. Run ml/train_model.py first!")
+    print("✅ Model Loaded")
+except:
     model, scaler = None, None
 
 # ─────────────────────────────────────────────────────────────
@@ -57,114 +65,275 @@ def get_db():
     return mysql.connector.connect(**DB_CONFIG)
 
 # ─────────────────────────────────────────────────────────────
-# JWT Auth Decorator
+# Email Sender
+# ─────────────────────────────────────────────────────────────
+def send_email(to_email, subject, body):
+
+    sender = os.getenv("EMAIL_USER")
+    password = os.getenv("EMAIL_PASS")
+
+    print("Sending OTP to:", to_email)
+    print("Sender:", sender)
+
+    if not sender or not password:
+        print("Email credentials missing")
+        return
+
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = sender
+    msg['To'] = to_email
+
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender, password)
+        server.sendmail(sender, to_email, msg.as_string())
+        server.quit()
+
+        print("Email sent successfully")
+
+    except Exception as e:
+        print("Email error:", e)
+# ─────────────────────────────────────────────────────────────
+# JWT Decorator
 # ─────────────────────────────────────────────────────────────
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+
         token = request.headers.get("Authorization", "").replace("Bearer ", "")
+
         if not token:
             return jsonify({"error": "Token required"}), 401
+
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
             request.user = payload
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token expired"}), 401
-        except jwt.InvalidTokenError:
+
+        except:
             return jsonify({"error": "Invalid token"}), 401
+
         return f(*args, **kwargs)
+
     return decorated
 
 # ─────────────────────────────────────────────────────────────
-# ROUTE: Serve Frontend
+# Serve Frontend
 # ─────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
     return send_from_directory("../frontend", "index.html")
 
 # ─────────────────────────────────────────────────────────────
-# ROUTE: Register
+# Register + OTP
 # ─────────────────────────────────────────────────────────────
+# Temporary storage
+TEMP_USERS = {}
+
+TEMP_USERS = {}
+
 @app.route("/api/register", methods=["POST"])
 def register():
-    data = request.json
-    username = data.get("username", "").strip()
-    email    = data.get("email", "").strip()
-    password = data.get("password", "")
 
-    if not username or not email or not password:
-        return jsonify({"error": "All fields required"}), 400
-    if len(password) < 6:
-        return jsonify({"error": "Password must be at least 6 characters"}), 400
+    data = request.json
+
+    username = data.get("username")
+    email = data.get("email")
+    password = data.get("password")
+
+    otp = str(random.randint(100000,999999))
+
+    print("Sending OTP:", otp)
+
+    TEMP_USERS[email] = {
+        "username": username,
+        "password": password,
+        "otp": otp
+    }
+
+    send_email(
+        email,
+        "FraudShield OTP",
+        f"Your OTP is {otp}"
+    )
+
+    return jsonify({"message":"OTP sent"})
+# ─────────────────────────────────────────────────────────────
+# Verify OTP
+# ─────────────────────────────────────────────────────────────
+@app.route("/api/verify-otp", methods=["POST"])
+def verify_otp():
+
+    data = request.json
+
+    email = data.get("email")
+    otp = data.get("otp")
+
+    temp = TEMP_USERS.get(email)
+
+    if not temp:
+        return jsonify({"error":"Session expired"})
+
+    if temp["otp"] != otp:
+        return jsonify({"error":"Invalid OTP"})
+
+    username = temp["username"]
+    password = temp["password"]
 
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    try:
-        db = get_db()
-        cursor = db.cursor()
-        cursor.execute(
-            "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)",
-            (username, email, hashed)
-        )
-        db.commit()
-        cursor.close(); db.close()
-        return jsonify({"message": "Registration successful"}), 201
-    except mysql.connector.IntegrityError:
-        return jsonify({"error": "Username or email already exists"}), 409
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    db = get_db()
+    cursor = db.cursor()
 
+    # check duplicate
+    cursor.execute(
+        "SELECT * FROM users WHERE username=%s OR email=%s",
+        (username, email)
+    )
+
+    existing = cursor.fetchone()
+
+    if existing:
+        return jsonify({"error":"User already exists"})
+
+    cursor.execute("""
+    INSERT INTO users (username,email,password)
+    VALUES (%s,%s,%s)
+    """,(username,email,hashed))
+
+    db.commit()
+
+    # remove temp user
+    TEMP_USERS.pop(email, None)
+
+    return jsonify({"message":"Account created"})
 # ─────────────────────────────────────────────────────────────
-# ROUTE: Login
+# Login with Lock
 # ─────────────────────────────────────────────────────────────
 @app.route("/api/login", methods=["POST"])
 def login():
-    data     = request.json
-    username = data.get("username", "").strip()
-    password = data.get("password", "")
 
-    if not username or not password:
-        return jsonify({"error": "Username and password required"}), 400
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
 
-    try:
-        db = get_db(); cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-        user = cursor.fetchone()
-        cursor.close(); db.close()
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
 
-        if not user:
-            return jsonify({"error": "Invalid credentials"}), 401
+    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+    user = cursor.fetchone()
 
-        # Safe bcrypt check — handles plain text passwords too
-        try:
-            ok = bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8"))
-        except Exception:
-            ok = (password == user["password"])
-            if ok:
-                # Auto-upgrade plain text to bcrypt
-                new_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
-                db2 = get_db(); cur2 = db2.cursor()
-                cur2.execute("UPDATE users SET password=%s WHERE username=%s", (new_hash, username))
-                db2.commit(); cur2.close(); db2.close()
+    if not user:
+        return jsonify({"error": "Invalid credentials"})
 
-        if not ok:
-            return jsonify({"error": "Invalid credentials"}), 401
+    # lock check
+    if user["lock_time"]:
+        unlock = user["lock_time"] + timedelta(hours=1)
+        if datetime.datetime.utcnow() < unlock:
+            return jsonify({"error": "Account locked for 1 hour"})
 
-        token = jwt.encode({
-            "user_id":  user["id"],
-            "username": user["username"],
-            "role":     user["role"],
-            "exp":      datetime.datetime.utcnow() + datetime.timedelta(hours=8)
-        }, SECRET_KEY, algorithm="HS256")
+    # password check
+    if not bcrypt.checkpw(password.encode(), user["password"].encode()):
 
-        return jsonify({
-            "token":    token,
-            "username": user["username"],
-            "role":     user["role"],
-            "message":  "Login successful"
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        attempts = user["failed_attempts"] + 1
+
+        if attempts >= 5:
+            cursor.execute("""
+            UPDATE users 
+            SET failed_attempts=%s, lock_time=%s 
+            WHERE username=%s
+            """, (attempts, datetime.datetime.utcnow(), username))
+        else:
+            cursor.execute("""
+            UPDATE users 
+            SET failed_attempts=%s 
+            WHERE username=%s
+            """, (attempts, username))
+
+        db.commit()
+
+        return jsonify({"error": "Invalid credentials"})
+
+    cursor.execute("""
+    UPDATE users 
+    SET failed_attempts=0, lock_time=NULL
+    WHERE username=%s
+    """, (username,))
+
+    db.commit()
+
+    token = jwt.encode({
+        "user_id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "exp": datetime.datetime.utcnow() + timedelta(hours=8)
+    }, SECRET_KEY, algorithm="HS256")
+
+    return jsonify({
+        "token": token,
+        "username": user["username"],
+        "role": user["role"]
+    })
+
+# ─────────────────────────────────────────────────────────────
+# Forgot Password
+# ─────────────────────────────────────────────────────────────
+@app.route("/api/forgot-password", methods=["POST"])
+def forgot_password():
+
+    data = request.json
+    email = data.get("email")
+
+    token = jwt.encode({
+        "email": email,
+        "exp": datetime.datetime.utcnow() + timedelta(hours=1)
+    }, SECRET_KEY, algorithm="HS256")
+
+    reset_link = f"{request.host_url}reset.html?token={token}"
+
+    send_email(
+        email,
+        "FraudShield Reset Password",
+        f"Reset password: {reset_link}"
+    )
+
+    return jsonify({"message": "Reset link sent"})
+#------------------------------------------------------------
+# Serve Reset Password Page
+#------------------------------------------------------------
+@app.route("/reset.html")
+def reset_page():
+    return send_from_directory("../frontend", "reset.html")
+
+# ─────────────────────────────────────────────────────────────
+# Reset Password
+# ─────────────────────────────────────────────────────────────
+@app.route("/api/reset-password", methods=["POST"])
+def reset_password():
+
+    data = request.json
+
+    token = data.get("token")
+    password = data.get("password")
+
+    decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    email = decoded["email"]
+
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("""
+    UPDATE users 
+    SET password=%s 
+    WHERE email=%s
+    """, (hashed, email))
+
+    db.commit()
+
+    return jsonify({"message": "Password reset successful"})
 
 # ─────────────────────────────────────────────────────────────
 # ROUTE: Predict Fraud (Main ML endpoint)
