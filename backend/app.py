@@ -85,7 +85,7 @@ def send_email(to_email, subject, body):
 
     msg = MIMEText(body)
     msg["Subject"] = subject
-    msg["From"] = sender
+    msg["From"] = f"FraudShield <{sender}>"
     msg["To"] = to_email
 
     try:
