@@ -72,21 +72,20 @@ def send_email(to_email, subject, body):
     sender = os.getenv("EMAIL_USER")
     password = os.getenv("EMAIL_PASS")
 
-    print("Sending OTP to:", to_email)
-    print("Sender:", sender)
-
-    if not sender or not password:
-        print("Email credentials missing")
-        return
+    print("Sending email from:", sender)
+    print("Sending to:", to_email)
 
     msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = sender
-    msg['To'] = to_email
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = to_email
 
     try:
         server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.ehlo()
         server.starttls()
+        server.ehlo()
+
         server.login(sender, password)
         server.sendmail(sender, to_email, msg.as_string())
         server.quit()
@@ -94,7 +93,7 @@ def send_email(to_email, subject, body):
         print("Email sent successfully")
 
     except Exception as e:
-        print("Email error:", e)
+        print("Email error:", str(e))
 # ─────────────────────────────────────────────────────────────
 # JWT Decorator
 # ─────────────────────────────────────────────────────────────
