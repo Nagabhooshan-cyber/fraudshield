@@ -140,9 +140,6 @@ def index():
 # ─────────────────────────────────────────────────────────────
 # Register + OTP
 # ─────────────────────────────────────────────────────────────
-# Temporary storage
-import threading
-
 TEMP_USERS = {}
 
 @app.route("/api/register", methods=["POST"])
@@ -164,11 +161,15 @@ def register():
         "otp": otp
     }
 
-    # Send email in background
-    threading.Thread(
-        target=send_email,
-        args=(email, "FraudShield OTP", f"Your OTP is {otp}")
-    ).start()
+    print("Calling send_email...")
+
+    send_email(
+        email,
+        "FraudShield OTP",
+        f"Your OTP is {otp}"
+    )
+
+    print("send_email finished")
 
     return jsonify({"message":"OTP sent"})
 # ─────────────────────────────────────────────────────────────
