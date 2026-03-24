@@ -71,7 +71,11 @@ import requests
 import os
 
 def send_email(to_email, subject, body):
+    
 
+    print("Brevo email sending started")
+
+    # rest of code
     api_key = os.getenv("BREVO_API_KEY")
     sender_email = os.getenv("EMAIL_USER")
 
@@ -137,7 +141,7 @@ def index():
 # Register + OTP
 # ─────────────────────────────────────────────────────────────
 # Temporary storage
-TEMP_USERS = {}
+import threading
 
 TEMP_USERS = {}
 
@@ -160,11 +164,11 @@ def register():
         "otp": otp
     }
 
-    send_email(
-        email,
-        "FraudShield OTP",
-        f"Your OTP is {otp}"
-    )
+    # Send email in background
+    threading.Thread(
+        target=send_email,
+        args=(email, "FraudShield OTP", f"Your OTP is {otp}")
+    ).start()
 
     return jsonify({"message":"OTP sent"})
 # ─────────────────────────────────────────────────────────────
