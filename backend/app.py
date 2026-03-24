@@ -67,35 +67,39 @@ def get_db():
 # ─────────────────────────────────────────────────────────────
 # Email Sender
 # ─────────────────────────────────────────────────────────────
-import smtplib
-from email.mime.text import MIMEText
-import os
-
-import smtplib
-from email.mime.text import MIMEText
+import requests
 import os
 
 def send_email(to_email, subject, body):
 
-    sender = os.getenv("EMAIL_USER")
-    password = os.getenv("EMAIL_PASS")
+    api_key = os.getenv("BREVO_API_KEY")
+    sender_email = os.getenv("EMAIL_USER")
 
-    print("Sending email from:", sender)
-    print("Sending to:", to_email)
+    url = "https://api.brevo.com/v3/smtp/email"
 
-    msg = MIMEText(body)
-    msg["Subject"] = subject
-    msg["From"] = f"FraudShield <{sender}>"
-    msg["To"] = to_email
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+
+    data = {
+        "sender": {
+            "name": "FraudShield",
+            "email": sender_email
+        },
+        "to": [
+            {
+                "email": to_email
+            }
+        ],
+        "subject": subject,
+        "htmlContent": f"<html><body><h3>{body}</h3></body></html>"
+    }
 
     try:
-        server = smtplib.SMTP("smtp-relay.brevo.com", 587)
-        server.starttls()
-        server.login(sender, password)
-        server.sendmail(sender, to_email, msg.as_string())
-        server.quit()
-
-        print("Email sent successfully")
+        response = requests.post(url, json=data, headers=headers)
+        print("Brevo response:", response.text)
 
     except Exception as e:
         print("Email error:", str(e))
