@@ -180,11 +180,13 @@ def register():
     print("Calling send_email...")
 
     send_email(
-        email,
-        "FraudShield OTP",
-        f"Your OTP is {otp}",
-        "This OTP expires in 10 minutes"
-    )
+    email,
+    "FraudShield OTP",
+    f"""
+    <h3>Your OTP is: {otp}</h3>
+    <p>This OTP expires in 10 minutes</p>
+    """
+)
 
     print("send_email finished")
 
