@@ -236,8 +236,6 @@ def verify_otp():
 # ─────────────────────────────────────────────────────────────
 from datetime import datetime, timedelta
 
-from datetime import datetime, timedelta
-
 @app.route("/api/login", methods=["POST"])
 def login():
 
@@ -258,13 +256,16 @@ def login():
     if not user:
         return jsonify({"error":"Invalid username or password"}),401
 
-    # check if account locked
+    # Get current time
+    now = datetime.utcnow()
+
+    # Check if account locked
     if user["lock_time"]:
 
-        if datetime.utcnow() < user["lock_time"]:
+        if now < user["lock_time"]:
 
             remaining = int(
-                (user["lock_time"] - datetime.utcnow()).total_seconds() / 60
+                (user["lock_time"] - now).total_seconds() / 60
             )
 
             return jsonify({
@@ -272,7 +273,7 @@ def login():
             }),403
 
         else:
-            # unlock account after 1 hour
+            # unlock account
             cursor.execute("""
             UPDATE users 
             SET failed_attempts = 0,
@@ -281,15 +282,15 @@ def login():
             """,(user["id"],))
             db.commit()
 
-    # check password
+    # Check password
     if not bcrypt.checkpw(
         password.encode(),
         user["password"].encode()
     ):
 
-        attempts = user["failed_attempts"] + 1
+        attempts = (user["failed_attempts"] or 0) + 1
 
-        # if attempts < 5 → don't lock
+        # less than 5 attempts
         if attempts < 5:
 
             cursor.execute("""
@@ -304,10 +305,10 @@ def login():
                 "error": f"Invalid credentials ({attempts}/5)"
             }),401
 
-        # lock at 5th attempt
+        # lock after 5 attempts
         else:
 
-            lock_time = datetime.utcnow() + timedelta(hours=1)
+            lock_time = now + timedelta(hours=1)
 
             cursor.execute("""
             UPDATE users
@@ -322,7 +323,7 @@ def login():
                 "error":"Account locked for 1 hour (5 failed attempts)"
             }),403
 
-    # correct login → reset attempts
+    # Correct login → reset
     cursor.execute("""
     UPDATE users
     SET failed_attempts = 0,
@@ -333,11 +334,12 @@ def login():
     db.commit()
 
     token = jwt.encode({
-    "user_id": user["id"],
-    "username": user["username"],
-    "role": user["role"],     # IMPORTANT
-    "exp": datetime.utcnow() + timedelta(hours=8)
+        "user_id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "exp": now + timedelta(hours=8)
     }, SECRET_KEY, algorithm="HS256")
+
     return jsonify({
         "token": token,
         "username": user["username"]
