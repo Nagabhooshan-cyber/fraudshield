@@ -2,6 +2,8 @@
 FraudShield - AI Fraud Detection System
 """
 
+import smtplib
+
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import joblib
@@ -12,7 +14,8 @@ import jwt
 import os
 import datetime
 import random
-import smtplib
+import smtplib  
+import secrets
 
 from email.mime.text import MIMEText
 from functools import wraps
@@ -233,6 +236,8 @@ def verify_otp():
 # ─────────────────────────────────────────────────────────────
 from datetime import datetime, timedelta
 
+from datetime import datetime, timedelta
+
 @app.route("/api/login", methods=["POST"])
 def login():
 
@@ -253,26 +258,30 @@ def login():
     if not user:
         return jsonify({"error":"Invalid username or password"}),401
 
-    # Check if locked
+    # check if account locked
     if user["lock_time"]:
 
-        lock_time = user["lock_time"]
+        if datetime.utcnow() < user["lock_time"]:
 
-        if datetime.utcnow() < lock_time:
-            remaining = (lock_time - datetime.utcnow()).seconds // 60
+            remaining = int(
+                (user["lock_time"] - datetime.utcnow()).total_seconds() / 60
+            )
+
             return jsonify({
-                "error":f"Account locked. Try again after {remaining} minutes"
+                "error": f"Account locked. Try again after {remaining} minutes"
             }),403
+
         else:
-            # unlock after 1 hour
+            # unlock account after 1 hour
             cursor.execute("""
-            UPDATE users
-            SET failed_attempts=0, lock_time=NULL
-            WHERE id=%s
+            UPDATE users 
+            SET failed_attempts = 0,
+                lock_time = NULL
+            WHERE id = %s
             """,(user["id"],))
             db.commit()
 
-    # Check password
+    # check password
     if not bcrypt.checkpw(
         password.encode(),
         user["password"].encode()
@@ -280,16 +289,32 @@ def login():
 
         attempts = user["failed_attempts"] + 1
 
-        # lock after 5 attempts
-        if attempts >= 5:
+        # if attempts < 5 → don't lock
+        if attempts < 5:
+
+            cursor.execute("""
+            UPDATE users
+            SET failed_attempts = %s
+            WHERE id = %s
+            """,(attempts,user["id"]))
+
+            db.commit()
+
+            return jsonify({
+                "error": f"Invalid credentials ({attempts}/5)"
+            }),401
+
+        # lock at 5th attempt
+        else:
 
             lock_time = datetime.utcnow() + timedelta(hours=1)
 
             cursor.execute("""
             UPDATE users
-            SET failed_attempts=%s, lock_time=%s
-            WHERE id=%s
-            """,(attempts,lock_time,user["id"]))
+            SET failed_attempts = 5,
+                lock_time = %s
+            WHERE id = %s
+            """,(lock_time,user["id"]))
 
             db.commit()
 
@@ -297,38 +322,25 @@ def login():
                 "error":"Account locked for 1 hour (5 failed attempts)"
             }),403
 
-        else:
-
-            cursor.execute("""
-            UPDATE users
-            SET failed_attempts=%s
-            WHERE id=%s
-            """,(attempts,user["id"]))
-
-            db.commit()
-
-            return jsonify({
-                "error":f"Invalid credentials ({attempts}/5 attempts)"
-            }),401
-
     # correct login → reset attempts
     cursor.execute("""
     UPDATE users
-    SET failed_attempts=0, lock_time=NULL
-    WHERE id=%s
+    SET failed_attempts = 0,
+        lock_time = NULL
+    WHERE id = %s
     """,(user["id"],))
 
     db.commit()
 
     token = jwt.encode({
-        "user_id":user["id"],
-        "username":user["username"],
-        "exp": datetime.utcnow() + timedelta(hours=8)
+    "user_id": user["id"],
+    "username": user["username"],
+    "role": user["role"],     # IMPORTANT
+    "exp": datetime.utcnow() + timedelta(hours=8)
     }, SECRET_KEY, algorithm="HS256")
-
     return jsonify({
-        "token":token,
-        "username":user["username"]
+        "token": token,
+        "username": user["username"]
     })
 # ─────────────────────────────────────────────────────────────
 # Forgot Password
@@ -496,19 +508,19 @@ def get_transactions():
 # ROUTE: Dashboard Stats
 # ─────────────────────────────────────────────────────────────
 @app.route("/api/stats")
+@token_required
 def get_stats():
-    try:
-        token = request.headers.get("Authorization").split(" ")[1]
-        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
 
-        user_id = decoded["user_id"]
-        role = decoded["role"]
+    try:
+
+        user_id = request.user["user_id"]
+        role = request.user["role"]
 
         db = get_db()
         cursor = db.cursor(dictionary=True)
 
         if role == "admin":
-            # ✅ ALL DATA
+
             cursor.execute("SELECT COUNT(*) AS total FROM transactions")
             total = cursor.fetchone()["total"]
 
@@ -519,14 +531,23 @@ def get_stats():
             fraud_amount = cursor.fetchone()["fraud_amount"] or 0
 
         else:
-            # ✅ USER-SPECIFIC DATA
-            cursor.execute("SELECT COUNT(*) AS total FROM transactions WHERE user_id = %s", (user_id,))
+
+            cursor.execute(
+                "SELECT COUNT(*) AS total FROM transactions WHERE user_id = %s",
+                (user_id,)
+            )
             total = cursor.fetchone()["total"]
 
-            cursor.execute("SELECT COUNT(*) AS fraud_count FROM transactions WHERE is_fraud = 1 AND user_id = %s", (user_id,))
+            cursor.execute(
+                "SELECT COUNT(*) AS fraud_count FROM transactions WHERE user_id = %s AND is_fraud = 1",
+                (user_id,)
+            )
             fraud = cursor.fetchone()["fraud_count"]
 
-            cursor.execute("SELECT SUM(amount) AS fraud_amount FROM transactions WHERE is_fraud = 1 AND user_id = %s", (user_id,))
+            cursor.execute(
+                "SELECT SUM(amount) AS fraud_amount FROM transactions WHERE user_id = %s AND is_fraud = 1",
+                (user_id,)
+            )
             fraud_amount = cursor.fetchone()["fraud_amount"] or 0
 
         fraud_rate = (fraud / total * 100) if total > 0 else 0
@@ -534,7 +555,7 @@ def get_stats():
         return jsonify({
             "total": total,
             "fraud_count": fraud,
-            "fraud_rate": round(fraud_rate, 2),
+            "fraud_rate": round(fraud_rate,2),
             "fraud_amount": fraud_amount
         })
 

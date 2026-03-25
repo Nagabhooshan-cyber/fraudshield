@@ -723,10 +723,10 @@ function showApp() {
 
   const username =
     localStorage.getItem("username") ||
-    sessionStorage.getItem("username") ||
-    "User";
+    sessionStorage.getItem("username");
 
-  document.getElementById("nav-username").textContent = username;
+  document.getElementById("nav-username").textContent =
+    username || "User";
 
   loadDashboard();
 }
