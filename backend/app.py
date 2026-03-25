@@ -71,11 +71,9 @@ import requests
 import os
 
 def send_email(to_email, subject, body):
-    
 
-    print("Brevo email sending started")
+    print("Sending email via Brevo REST API")
 
-    # rest of code
     api_key = os.getenv("BREVO_API_KEY")
     sender_email = os.getenv("EMAIL_USER")
 
@@ -98,12 +96,21 @@ def send_email(to_email, subject, body):
             }
         ],
         "subject": subject,
-        "htmlContent": f"<html><body><h3>{body}</h3></body></html>"
+        "htmlContent": f"""
+        <html>
+            <body>
+                <h3>Your OTP is: {body}</h3>
+                <p>This OTP expires in 10 minutes</p>
+            </body>
+        </html>
+        """
     }
 
     try:
-        response = requests.post(url, json=data, headers=headers)
-        print("Brevo response:", response.text)
+        response = requests.post(url, headers=headers, json=data)
+
+        print("Brevo Status:", response.status_code)
+        print("Brevo Response:", response.text)
 
     except Exception as e:
         print("Email error:", str(e))
