@@ -231,6 +231,8 @@ def verify_otp():
 # ─────────────────────────────────────────────────────────────
 # Login with Lock
 # ─────────────────────────────────────────────────────────────
+from datetime import datetime, timedelta
+
 @app.route("/api/login", methods=["POST"])
 def login():
 
@@ -241,61 +243,93 @@ def login():
     db = get_db()
     cursor = db.cursor(dictionary=True)
 
-    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+    cursor.execute(
+        "SELECT * FROM users WHERE username=%s",
+        (username,)
+    )
+
     user = cursor.fetchone()
 
     if not user:
-        return jsonify({"error": "Invalid credentials"})
+        return jsonify({"error":"Invalid username or password"}),401
 
-    # lock check
+    # Check if locked
     if user["lock_time"]:
-        unlock = user["lock_time"] + timedelta(hours=1)
-        if datetime.datetime.utcnow() < unlock:
-            return jsonify({"error": "Account locked for 1 hour"})
 
-    # password check
-    if not bcrypt.checkpw(password.encode(), user["password"].encode()):
+        lock_time = user["lock_time"]
+
+        if datetime.utcnow() < lock_time:
+            remaining = (lock_time - datetime.utcnow()).seconds // 60
+            return jsonify({
+                "error":f"Account locked. Try again after {remaining} minutes"
+            }),403
+        else:
+            # unlock after 1 hour
+            cursor.execute("""
+            UPDATE users
+            SET failed_attempts=0, lock_time=NULL
+            WHERE id=%s
+            """,(user["id"],))
+            db.commit()
+
+    # Check password
+    if not bcrypt.checkpw(
+        password.encode(),
+        user["password"].encode()
+    ):
 
         attempts = user["failed_attempts"] + 1
 
+        # lock after 5 attempts
         if attempts >= 5:
+
+            lock_time = datetime.utcnow() + timedelta(hours=1)
+
             cursor.execute("""
-            UPDATE users 
-            SET failed_attempts=%s, lock_time=%s 
-            WHERE username=%s
-            """, (attempts, datetime.datetime.utcnow(), username))
+            UPDATE users
+            SET failed_attempts=%s, lock_time=%s
+            WHERE id=%s
+            """,(attempts,lock_time,user["id"]))
+
+            db.commit()
+
+            return jsonify({
+                "error":"Account locked for 1 hour (5 failed attempts)"
+            }),403
+
         else:
+
             cursor.execute("""
-            UPDATE users 
-            SET failed_attempts=%s 
-            WHERE username=%s
-            """, (attempts, username))
+            UPDATE users
+            SET failed_attempts=%s
+            WHERE id=%s
+            """,(attempts,user["id"]))
 
-        db.commit()
+            db.commit()
 
-        return jsonify({"error": "Invalid credentials"})
+            return jsonify({
+                "error":f"Invalid credentials ({attempts}/5 attempts)"
+            }),401
 
+    # correct login → reset attempts
     cursor.execute("""
-    UPDATE users 
+    UPDATE users
     SET failed_attempts=0, lock_time=NULL
-    WHERE username=%s
-    """, (username,))
+    WHERE id=%s
+    """,(user["id"],))
 
     db.commit()
 
     token = jwt.encode({
-        "user_id": user["id"],
-        "username": user["username"],
-        "role": user["role"],
-        "exp": datetime.datetime.utcnow() + timedelta(hours=8)
+        "user_id":user["id"],
+        "username":user["username"],
+        "exp": datetime.utcnow() + timedelta(hours=8)
     }, SECRET_KEY, algorithm="HS256")
 
     return jsonify({
-        "token": token,
-        "username": user["username"],
-        "role": user["role"]
+        "token":token,
+        "username":user["username"]
     })
-
 # ─────────────────────────────────────────────────────────────
 # Forgot Password
 # ─────────────────────────────────────────────────────────────
@@ -305,20 +339,30 @@ def forgot_password():
     data = request.json
     email = data.get("email")
 
-    token = jwt.encode({
-        "email": email,
-        "exp": datetime.datetime.utcnow() + timedelta(hours=1)
-    }, SECRET_KEY, algorithm="HS256")
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
 
-    reset_link = f"{request.host_url}reset.html?token={token}"
+    cursor.execute(
+        "SELECT * FROM users WHERE email=%s",
+        (email,)
+    )
+
+    user = cursor.fetchone()
+
+    if not user:
+        return jsonify({"error":"Email not registered"}), 400
+
+    token = secrets.token_urlsafe(32)
+
+    reset_link = f"{FRONTEND_URL}/reset.html?token={token}"
 
     send_email(
         email,
         "FraudShield Reset Password",
-        f"Reset password: {reset_link}"
+        f"Click here to reset password: {reset_link}"
     )
 
-    return jsonify({"message": "Reset link sent"})
+    return jsonify({"message":"Reset link sent"})
 #------------------------------------------------------------
 # Serve Reset Password Page
 #------------------------------------------------------------
@@ -506,41 +550,7 @@ def health():
         "model_loaded": model is not None,
         "version": "1.0.0"
     })
-#
-@app.route("/api/test-email")
-def test_email():
-    import requests, os
-    api_key = os.getenv("BREVO_API_KEY")
-    sender_email = os.getenv("EMAIL_USER")
-    
-    print("=== EMAIL TEST ===")
-    print("API KEY:", api_key[:15] if api_key else "MISSING")
-    print("SENDER:", sender_email)
-    
-    url = "https://api.brevo.com/v3/smtp/email"
-    headers = {
-        "accept": "application/json",
-        "api-key": api_key,
-        "content-type": "application/json"
-    }
-    data = {
-        "sender": {"name": "FraudShield", "email": sender_email},  # ← uses EMAIL_USER env var
-        "to": [{"email": "nagabhooshan41@gmail.com"}],  # ← put YOUR personal gmail here
-        "subject": "Render Test",
-        "htmlContent": "<p>It works!</p>"
-    }
-    
-    response = requests.post(url, headers=headers, json=data)
-    
-    print("STATUS:", response.status_code)
-    print("RESPONSE:", response.text)
-    
-    return {
-        "api_key_present": bool(api_key),
-        "sender": sender_email,
-        "status": response.status_code,
-        "brevo_response": response.text
-    }
+
 # ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("🚀 Fraud Detection API starting on http://localhost:5000")
