@@ -351,7 +351,8 @@ def login():
 # ─────────────────────────────────────────────────────────────
 # Forgot Password
 # ─────────────────────────────────────────────────────────────
-import secrets
+
+from urllib.parse import quote
 
 @app.route("/api/forgot-password", methods=["POST"])
 def forgot_password():
@@ -378,20 +379,23 @@ def forgot_password():
         "exp": datetime.utcnow() + timedelta(hours=1)
     }, SECRET_KEY, algorithm="HS256")
 
-    # reset link (IMPORTANT: use your frontend URL)
+    # encode token for URL
+    token = quote(token)
+
+    # reset link
     reset_link = f"https://fraudshield.netlify.app/reset.html?token={token}"
 
     send_email(
-    email,
-    "FraudShield Password Reset",
-    f"""
-    <h3>Password Reset Request</h3>
-    <p>Click the link below to reset your password:</p>
-    <a href="{reset_link}">{reset_link}</a>
-    <br><br>
-    <small>This link expires in 1 hour</small>
-    """
-)
+        email,
+        "FraudShield Password Reset",
+        f"""
+        <h3>Password Reset Request</h3>
+        <p>Click below to reset your password:</p>
+        <a href="{reset_link}">Reset Password</a>
+        <br><br>
+        <small>This link expires in 1 hour</small>
+        """
+    )
 
     return jsonify({"message":"Reset link sent"})
 # ─────────────────────────────────────────────────────────────
