@@ -524,8 +524,8 @@ def test_email():
         "content-type": "application/json"
     }
     data = {
-        "sender": {"name": "Test", "email": sender_email},
-        "to": [{"email": "nagabhooshan41@gmail.com"}],  # ← put your own email here
+        "sender": {"name": "FraudShield", "email": sender_email},  # ← uses EMAIL_USER env var
+        "to": [{"email": "nagabhooshan41@gmail.com"}],  # ← put YOUR personal gmail here
         "subject": "Render Test",
         "htmlContent": "<p>It works!</p>"
     }
