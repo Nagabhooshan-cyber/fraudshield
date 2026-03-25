@@ -21,7 +21,7 @@ import smtplib
 from email.mime.text import MIMEText
 from functools import wraps
 from dotenv import load_dotenv
-from datetime import timedelta
+from datetime import timedelta, timezone
 import secrets
 load_dotenv()
 print("EMAIL:", os.getenv("EMAIL_USER"))
@@ -258,7 +258,8 @@ def login():
         return jsonify({"error":"Invalid username or password"}),401
 
     # Get current time
-    now = datetime.utcnow()
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
 
     # Check if account locked
     if user["lock_time"]:
@@ -309,6 +310,7 @@ def login():
         # lock after 5 attempts
         else:
 
+            now = datetime.now(timezone.utc)
             lock_time = now + timedelta(hours=1)
 
             cursor.execute("""
@@ -379,10 +381,16 @@ def forgot_password():
     reset_link = f"https://fraudshield.netlify.app/reset.html?token={token}"
 
     send_email(
-        email,
-        "FraudShield Reset Password",
-        f"Click here to reset password: {reset_link}"
-    )
+    email,
+    "FraudShield Password Reset",
+    f"""
+    <h3>Password Reset Request</h3>
+    <p>Click the link below to reset your password:</p>
+    <a href="{reset_link}">{reset_link}</a>
+    <br><br>
+    <small>This link expires in 1 hour</small>
+    """
+)
 
     return jsonify({"message":"Reset link sent"})
 # ─────────────────────────────────────────────────────────────
