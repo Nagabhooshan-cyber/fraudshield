@@ -103,8 +103,8 @@ def send_email(to_email, subject, body):
         "htmlContent": f"""
         <html>
             <body>
-                <h3>Your OTP is: {body}</h3>
-                <p>This OTP expires in 10 minutes</p>
+                <h3> {body}</h3>
+                
             </body>
         </html>
         """
@@ -177,7 +177,8 @@ def register():
     send_email(
         email,
         "FraudShield OTP",
-        f"Your OTP is {otp}"
+        f"Your OTP is {otp}",
+        "This OTP expires in 10 minutes"
     )
 
     print("send_email finished")
