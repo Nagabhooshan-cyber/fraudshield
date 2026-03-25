@@ -525,7 +525,7 @@ def test_email():
     }
     data = {
         "sender": {"name": "Test", "email": sender_email},
-        "to": [{"email": "YOUR_PERSONAL_EMAIL@gmail.com"}],  # ← put your own email here
+        "to": [{"email": "nagabhooshan41@gmail.com"}],  # ← put your own email here
         "subject": "Render Test",
         "htmlContent": "<p>It works!</p>"
     }
