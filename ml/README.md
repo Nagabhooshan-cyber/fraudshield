@@ -1,13 +1,13 @@
 # ⬡ FraudShield — AI Financial Fraud Detection System
 
-A full-stack AI-powered fraud detection system built using **Machine Learning, Flask REST APIs, Railway MySQL database, Netlify frontend, and Render backend deployment**.
+A full-stack AI-powered fraud detection system built using **Machine Learning, Flask REST APIs, Railway MySQL database, Vercel frontend, and Render backend deployment**.
 
 ---
 
 # 🚀 Live Architecture
 
 ```
-Frontend  → Netlify
+Frontend  → Vercel
 Backend   → Render
 Database  → Railway MySQL
 ML Model  → Flask API
