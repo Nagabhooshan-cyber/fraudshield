@@ -3,6 +3,7 @@ FraudShield - AI Fraud Detection System
 """
 
 import smtplib
+import requests
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -15,13 +16,13 @@ import os
 import datetime
 import random
 import smtplib  
-import secrets
+
 
 from email.mime.text import MIMEText
 from functools import wraps
 from dotenv import load_dotenv
 from datetime import timedelta
-
+import secrets
 load_dotenv()
 print("EMAIL:", os.getenv("EMAIL_USER"))
 
@@ -347,6 +348,8 @@ def login():
 # ─────────────────────────────────────────────────────────────
 # Forgot Password
 # ─────────────────────────────────────────────────────────────
+import secrets
+
 @app.route("/api/forgot-password", methods=["POST"])
 def forgot_password():
 
@@ -366,9 +369,14 @@ def forgot_password():
     if not user:
         return jsonify({"error":"Email not registered"}), 400
 
-    token = secrets.token_urlsafe(32)
+    # create reset token
+    token = jwt.encode({
+        "email": email,
+        "exp": datetime.utcnow() + timedelta(hours=1)
+    }, SECRET_KEY, algorithm="HS256")
 
-    reset_link = f"{FRONTEND_URL}/reset.html?token={token}"
+    # reset link (IMPORTANT: use your frontend URL)
+    reset_link = f"https://fraudshield.netlify.app/reset.html?token={token}"
 
     send_email(
         email,
@@ -377,13 +385,6 @@ def forgot_password():
     )
 
     return jsonify({"message":"Reset link sent"})
-#------------------------------------------------------------
-# Serve Reset Password Page
-#------------------------------------------------------------
-@app.route("/reset.html")
-def reset_page():
-    return send_from_directory("../frontend", "reset.html")
-
 # ─────────────────────────────────────────────────────────────
 # Reset Password
 # ─────────────────────────────────────────────────────────────
