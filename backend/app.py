@@ -30,7 +30,12 @@ print("EMAIL:", os.getenv("EMAIL_USER"))
 # App Configuration
 # ─────────────────────────────────────────────────────────────
 app = Flask(__name__, static_folder="../frontend")
-CORS(app)
+from flask_cors import CORS
+
+CORS(app, origins=[
+    "https://fraudshield-ten.vercel.app",
+    "http://localhost:5500"
+])
 
 SECRET_KEY = os.environ.get("JWT_SECRET", "fraud_detect_secret_2024")
 
@@ -383,7 +388,7 @@ def forgot_password():
     token = quote(token)
 
     # reset link
-    reset_link = f"https://fraudshield.netlify.app/reset.html?token={token}"
+    reset_link = f"https://fraudshield-ten.vercel.app/reset.html?token={token}"
 
     send_email(
         email,
