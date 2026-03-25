@@ -506,7 +506,41 @@ def health():
         "model_loaded": model is not None,
         "version": "1.0.0"
     })
-
+#
+@app.route("/api/test-email")
+def test_email():
+    import requests, os
+    api_key = os.getenv("BREVO_API_KEY")
+    sender_email = os.getenv("EMAIL_USER")
+    
+    print("=== EMAIL TEST ===")
+    print("API KEY:", api_key[:15] if api_key else "MISSING")
+    print("SENDER:", sender_email)
+    
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+    data = {
+        "sender": {"name": "Test", "email": sender_email},
+        "to": [{"email": "YOUR_PERSONAL_EMAIL@gmail.com"}],  # ← put your own email here
+        "subject": "Render Test",
+        "htmlContent": "<p>It works!</p>"
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    print("STATUS:", response.status_code)
+    print("RESPONSE:", response.text)
+    
+    return {
+        "api_key_present": bool(api_key),
+        "sender": sender_email,
+        "status": response.status_code,
+        "brevo_response": response.text
+    }
 # ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("🚀 Fraud Detection API starting on http://localhost:5000")

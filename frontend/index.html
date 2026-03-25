@@ -190,7 +190,7 @@
     <div id="auth-error" class="auth-error"></div>
     <div id="login-form">
       <label>USERNAME</label>
-      <input type="text" id="login-username" placeholder="admin"/>
+      <input type="text" id="login-username" placeholder="Please enter your username"/>
       <label>PASSWORD</label>
       <input type="password" id="login-password" placeholder="••••••••"/>
       <button class="btn" onclick="doLogin()">ACCESS SYSTEM →</button>
@@ -719,10 +719,24 @@ async function doLogin() {
 function showApp() {
   document.getElementById("auth-screen").style.display = "none";
   document.getElementById("app").style.display = "block";
-  document.getElementById("nav-username").textContent = localStorage.getItem("username") || "user";
+
+  const username = 
+    localStorage.getItem("username") || 
+    sessionStorage.getItem("username") || 
+    "User";
+
+  document.getElementById("nav-username").textContent = username;
+
   loadDashboard();
 }
-function logout() { localStorage.clear(); token = null; location.reload(); }
+function logout() {
+
+  localStorage.clear()
+  sessionStorage.clear()
+
+  location.reload()
+
+}
 
 function showPage(name) {
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
